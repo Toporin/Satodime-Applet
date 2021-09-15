@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- You may freely edit this file. See commented blocks below for -->
+<!-- some examples of how to customize the build. -->
+<!-- (If you delete it and reopen the project it will be recreated.) -->
+<project name="Satodime" default="build" basedir=".">
+    <description>Builds, tests, and runs the project .</description>
+    
+	<!--
+    You could add descriptions of overridable targets here, or just link to online help...
+    -->
+	<taskdef name="javacard" classname="pro.javacard.ant.JavaCard" classpath="lib/ant-javacard.jar"/>
+	
+	<target name="build">
+		
+		<!-- 
+		<javacard>
+		  <cap jckit="C:\Dev\jc303_kit" aid="5361746f44696d65" version="0.1" output="Satodime-3.0.3.cap" sources="src\org\satodime\applet">
+			<applet class="org.satodime.applet.Satodime" aid="5361746f44696d6500"/>
+		  </cap>
+		</javacard>
+		-->
+		
+		<javacard>
+		  <cap jckit="C:\Dev\jc304_kit" aid="5361746f44696d65" version="0.1" output="Satodime-3.0.4.cap" sources="src\org\satodime\applet">
+			<applet class="org.satodime.applet.Satodime" aid="5361746f44696d6500"/>
+		  </cap>
+		</javacard>
+		
+		
+	</target>
+	
+</project>
