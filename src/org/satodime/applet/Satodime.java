@@ -76,8 +76,9 @@ public class Satodime extends javacard.framework.Applet {
      * VERSION HISTORY
      * PROTOCOL VERSION: changes that impact compatibility with the client side
      * APPLET VERSION:   changes with no impact on compatibility of the client
-     */
-    // 0.1-0.1: initial version
+     * 
+     *   0.1-0.1: initial version
+     */ 
     private final static byte PROTOCOL_MAJOR_VERSION = (byte) 0; 
     private final static byte PROTOCOL_MINOR_VERSION = (byte) 1;
     private final static byte APPLET_MAJOR_VERSION = (byte) 0;
@@ -316,15 +317,15 @@ public class Satodime extends javacard.framework.Applet {
      *********************************************/
     
     // Key objects (allocated on demand)
-    private short SIZE_ECPRIVKEY= (short)32;
-    private short SIZE_ECPUBKEY= (short)65;
-    private short SIZE_ECCOORDX= (short)32;
-    private short SIZE_ENTROPY= (short)32;
+    private static final short SIZE_ECPRIVKEY= (short)32;
+    private static final short SIZE_ECPUBKEY= (short)65;
+    private static final short SIZE_ECCOORDX= (short)32;
+    private static final short SIZE_ENTROPY= (short)32;
     private ECPrivateKey[] ecprivkeys;
     private byte[] ecpubkeys; //private ECPublicKey[] ecpubkeys;
     private byte[] user_entropy_array;
     private byte[] card_entropy_array;
-    short eckeys_flag=0x0000; //flag bit set to 1 when corresponding key is initialised 
+    //short eckeys_flag=0x0000; //flag bit set to 1 when corresponding key is initialised 
     
     // unlock_code data
     private byte[] unlock_secret; 
