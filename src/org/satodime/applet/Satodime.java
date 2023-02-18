@@ -78,11 +78,12 @@ public class Satodime extends javacard.framework.Applet {
      * APPLET VERSION:   changes with no impact on compatibility of the client
      * 
      *   0.1-0.1: initial version
+     *   0.1-0.2: refactor card-setup: allows to read info when setup is not done (changes are not allowed)
      */ 
     private final static byte PROTOCOL_MAJOR_VERSION = (byte) 0; 
     private final static byte PROTOCOL_MINOR_VERSION = (byte) 1;
     private final static byte APPLET_MAJOR_VERSION = (byte) 0;
-    private final static byte APPLET_MINOR_VERSION = (byte) 1;
+    private final static byte APPLET_MINOR_VERSION = (byte) 2;
 
     // Maximum number of keys handled by the Cardlet
     //private final static byte MAX_NUM_KEYS = (byte) 3;
@@ -579,7 +580,7 @@ public class Satodime extends javacard.framework.Applet {
         // at this point, the encrypted content has been deciphered in the buffer
         ins = buffer[ISO7816.OFFSET_INS];
         // check setup status
-        if (!setupDone && (ins != INS_SETUP)){
+        /*if (!setupDone && (ins != INS_SETUP)){
             //before setup, only personalization is allowed
             if (personalizationDone ||
                     (  (ins != INS_EXPORT_PKI_PUBKEY)
@@ -588,9 +589,21 @@ public class Satodime extends javacard.framework.Applet {
                     && (ins != INS_LOCK_PKI)) ){
                 ISOException.throwIt(SW_SETUP_NOT_DONE);
             } 
-        }
-        if (setupDone && (ins == INS_SETUP))
-            ISOException.throwIt(SW_SETUP_ALREADY_DONE);
+            // before setup, only forbid methods which changes state
+            if ((ins == INS_SET_SATODIME_KEYSLOT_STATUS)
+                    || (ins == INS_GET_SATODIME_PRIVKEY)
+                    || (ins == INS_SEAL_SATODIME_KEY)
+                    || (ins == INS_UNSEAL_SATODIME_KEY)
+                    || (ins == INS_RESET_SATODIME_KEY)
+                    || (ins == INS_INITIATE_SATODIME_TRANSFER)
+                    || (ins == INS_RESET_SATODIME_KEY)
+                    || (ins == INS_RESET_SATODIME_KEY))
+            {
+                ISOException.throwIt(SW_SETUP_NOT_DONE);
+            }
+        }*/
+        /*if (setupDone && (ins == INS_SETUP))
+            ISOException.throwIt(SW_SETUP_ALREADY_DONE);*/
         
         switch (ins) {
         // common methods
@@ -690,36 +703,25 @@ public class Satodime extends javacard.framework.Applet {
     } // end of process method
 
     /** 
-     * Setup APDU - initialize the applet and reserve memory
-     * This is done only once during the lifetime of the applet
+     * Setup APDU
+     * This should be done on first use and each time the card is transfered using initiateSatodimeTransfer()
+     * During setup, a new counter and unlock code is generated. these are required to perform sensitive (state-altering) operations. 
+     * If setup is not done, these sensitive operations cannot be performed.
      * 
      * ins: INS_SETUP (0x2A) 
      * p1: 0x00
      * p2: 0x00
-     * data: [default_pin_length(1b) | default_pin | 
-     *        pin_tries0(1b) | ublk_tries0(1b) | pin0_length(1b) | pin0 | ublk0_length(1b) | ublk0 | 
-     *        pin_tries1(1b) | ublk_tries1(1b) | pin1_length(1b) | pin1 | ublk1_length(1b) | ublk1 | 
-     *        secmemsize(2b) | RFU(2b) | RFU(3b) |
-     *        option_flags(2b) | 
-     *        (option): hmacsha1_key(20b) | amount_limit(8b)
-     *        ]
-     * where: 
-     *      default_pin: {0x4D, 0x75, 0x73, 0x63, 0x6C, 0x65, 0x30, 0x30};
-     *      pin_tries: max number of PIN try allowed before the corresponding PIN is blocked
-     *      ublk_tries:  max number of UBLK(unblock) try allowed before the PUK is blocked
-     *      secmemsize: number of bytes reserved for internal memory (storage of Bip32 objects)
-     *      memsize: number of bytes reserved for memory with external access
-     *      ACL: creation rights for objects - Key - PIN
-     *      option_flags: flags to define up to 16 additional options:
-     *      bit15 set: second factor authentication using hmac-sha1 challenge-response (v0.2-0.1)
-     *          hmacsha1_key: 20-byte hmac key used for transaction authorization
-     *          amount_limit: max amount (in satoshis) allowed without confirmation (this includes change value)
+     * data: []
      *  
      * return: [ MAX_NUM_KEYS(2b) | size_unlock_secret(2b) | unlock_secret | size_unlock_counter(2b) | unlock_counter] (deprecated)
      * return: [ unlock_counter(4b) | unlock_secret(20b) ]
      */
     private short setup(APDU apdu, byte[] buffer) {
-        personalizationDone=true;// perso PKI should be locked once setup is done
+        // check if setup is already done
+        if (setupDone)
+            ISOException.throwIt(SW_SETUP_ALREADY_DONE);
+        
+        personalizationDone=true;// perso PKI should be locked on first setup. This cannot be undone
         
         short bytesLeft = Util.makeShort((byte) 0x00, buffer[ISO7816.OFFSET_LC]);
         short base = (short) (ISO7816.OFFSET_CDATA);
@@ -808,6 +810,9 @@ public class Satodime extends javacard.framework.Applet {
         byte op = buffer[ISO7816.OFFSET_P2];
         switch (op) {
         case 0x00: // set label
+            // check that setup is done
+            if (!setupDone)
+                ISOException.throwIt(SW_SETUP_NOT_DONE);
             short bytes_left = Util.makeShort((byte) 0x00,
                     buffer[ISO7816.OFFSET_LC]);
             short buffer_offset = ISO7816.OFFSET_CDATA;
@@ -961,6 +966,9 @@ public class Satodime extends javacard.framework.Applet {
      *  return: (none)
      */
     private short setSatodimeKeyslotStatus(APDU apdu, byte[] buffer){
+        // check that setup is done
+        if (!setupDone)
+            ISOException.throwIt(SW_SETUP_NOT_DONE);
         
         byte key_nbr = buffer[ISO7816.OFFSET_P1];
         if ((key_nbr < 0) || (key_nbr >= MAX_NUM_KEYS) )
@@ -1082,6 +1090,9 @@ public class Satodime extends javacard.framework.Applet {
      *  return: [ entropy_size(2b) | user_entropy + authentikey_coordx + card_entropy | privkey_size(2b) | privkey | sig_size(2b) | sig ]
      */
     private short getSatodimePrivkey(APDU apdu, byte[] buffer){
+        // check that setup is done
+        if (!setupDone)
+            ISOException.throwIt(SW_SETUP_NOT_DONE);
         
         // check keyslot bounds
         byte key_nbr = buffer[ISO7816.OFFSET_P1];
@@ -1162,6 +1173,9 @@ public class Satodime extends javacard.framework.Applet {
      *  return: [ pubkey_size(2b) | pubkey | sig_size(2b) | sig ]
      */
     private short sealSatodimeKey(APDU apdu, byte[] buffer){
+        // check that setup is done
+        if (!setupDone)
+            ISOException.throwIt(SW_SETUP_NOT_DONE);
         
         // check keyslot bounds
         byte key_nbr = buffer[ISO7816.OFFSET_P1];
@@ -1257,6 +1271,9 @@ public class Satodime extends javacard.framework.Applet {
      *  return: [ entropy_size(2b) | user_entropy + authentikey_coordx + card_entropy | privkey_size(2b) | privkey | sig_size(2b) | sig ]
      */
     private short unsealSatodimeKey(APDU apdu, byte[] buffer){
+        // check that setup is done
+        if (!setupDone)
+            ISOException.throwIt(SW_SETUP_NOT_DONE);
         
         // check keyslot bounds
         byte key_nbr = buffer[ISO7816.OFFSET_P1];
@@ -1344,6 +1361,9 @@ public class Satodime extends javacard.framework.Applet {
      *  return: (none)
      */
     private short resetSatodimeKey(APDU apdu, byte[] buffer){
+        // check that setup is done
+        if (!setupDone)
+            ISOException.throwIt(SW_SETUP_NOT_DONE);
         
         // check keyslot bounds
         byte key_nbr = buffer[ISO7816.OFFSET_P1];
@@ -1424,6 +1444,9 @@ public class Satodime extends javacard.framework.Applet {
      *  return: (none)
      */
     private short initiateSatodimeTransfer(APDU apdu, byte[] buffer){
+        // check that setup is done
+        if (!setupDone)
+            ISOException.throwIt(SW_SETUP_NOT_DONE);
         
         short buffer_offset=ISO7816.OFFSET_CDATA;
         short bytesLeft = Util.makeShort((byte) 0x00, buffer[ISO7816.OFFSET_LC]);
