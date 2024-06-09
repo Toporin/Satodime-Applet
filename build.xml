@@ -12,16 +12,8 @@
 	
 	<target name="build">
 		
-		<!-- 
-		<javacard>
-		  <cap jckit="C:\Dev\jc303_kit" aid="5361746f44696d65" version="0.1" output="Satodime-3.0.3.cap" sources="src\org\satodime\applet">
-			<applet class="org.satodime.applet.Satodime" aid="5361746f44696d6500"/>
-		  </cap>
-		</javacard>
-		-->
-		
-		<javacard>
-		  <cap jckit="C:\Dev\jc304_kit" aid="5361746f44696d65" version="0.1" output="Satodime-3.0.4.cap" sources="src\org\satodime\applet">
+		<javacard jckit="sdks/jc304_kit">
+		  <cap aid="5361746f44696d65" version="0.1" output="Satodime-3.0.4.cap" sources="src\org\satodime\applet">
 			<applet class="org.satodime.applet.Satodime" aid="5361746f44696d6500"/>
 		  </cap>
 		</javacard>
