@@ -33,11 +33,17 @@ To distinguish the legitimate owner of the card from other users, a pairing proc
 
 # Satodime applications
 
-Two applications are available to be use with a Satodime:
-- Windows & Linux: [Satodime-Tool](https://github.com/Toporin/Satodime-Tool)
-- Android: [Satodime-Android](https://github.com/Toporin/Satodime-Android)
+Applications are available to be used with a Satodime:
+- Windows, Mac & Linux: [Satochip-Utils](https://github.com/Toporin/Satochip-Utils)
+- Android: [Satodime-Android](https://github.com/Toporin/Satodime-Android) - [Google Play](https://play.google.com/store/apps/details?id=org.satochip.satodimeapp)
+- iOS: [Satodime-iOS](https://github.com/Toporin/Satodime-iOS) - [Apple Store](https://apps.apple.com/us/app/satodime/id1672273462)
 
-Macos & IOS tools will be released later.
+# SDK
+
+Several libraries are available to simplify integration of Satodime with client applications:
+* Python: [pysatochip](https://github.com/Toporin/pysatochip) (also availabl in [pypi](https://pypi.org/project/pysatochip/))
+* Java/Kotlin: [Satochip-Java](https://github.com/Toporin/Satochip-Java)
+* Swift:  [SatochipSwift](https://github.com/Toporin/SatochipSwift)
 
 # Supported hardware
 
