@@ -867,12 +867,7 @@ public class Satodime extends javacard.framework.Applet {
      * This function returns the authentikey public key.
      * The function returns the x-coordinate of the authentikey, self-signed.
      * The authentikey full public key can be recovered from the signature.
-     * 
-     * Compared to getBIP32AuthentiKey(), this method returns the Authentikey even if the card is not seeded.
-     * For SeedKeeper encrypted seed import, we use the authentikey as a Trusted Pubkey for the ECDH key exchange, 
-     * thus the authentikey must be available before the Satochip is seeded. 
-     * Before a seed is available, the authentiey is generated oncard randomly in the constructor
-     * 
+     *
      *  ins: 0xAD
      *  p1: 0x00 
      *  p2: 0x00 
@@ -1513,7 +1508,7 @@ public class Satodime extends javacard.framework.Applet {
      *  p1: 0x00
      *  p2: 0x00
      *  data: [client-pubkey(65b)]
-     *  return: [coordx_size(2b) | authentikey-coordx | sig_size(2b) | self-sig | sig2_size(optional) | authentikey-sig(optional)]
+     *  return: [coordx_size(2b) | ephemeralkey_coordx | sig_size(2b) | self_sig | sig2_size | authentikey_sig | coordx_size(2b) | authentikey_coordx]
      */
     private short InitiateSecureChannel(APDU apdu, byte[] buffer){
         
@@ -1555,8 +1550,13 @@ public class Satodime extends javacard.framework.Applet {
         sigECDSA.init(authentikey_private, Signature.MODE_SIGN);
         short sign2_size= sigECDSA.sign(buffer, (short)0, offset, buffer, (short)(offset+2));
         Util.setShort(buffer, offset, sign2_size);
-        offset+=(short)(2+sign2_size); 
-        
+        offset+=(short)(2+sign2_size);
+
+        // add coordx for authentikey (allows for non-ambiguous recovery of pubkey using signature)
+        authentikey_public.getW(buffer, (short)(offset+1));
+        Util.setShort(buffer, offset, (short)32);
+        offset+=(short)(2+32);
+
         initialized_secure_channel= true;
         
         // return x-coordinate of public key+signature
