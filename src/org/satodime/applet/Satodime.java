@@ -376,7 +376,8 @@ public class Satodime extends javacard.framework.Applet {
     private static final byte[] CST_SC = {'s','c','_','k','e','y', 's','c','_','m','a','c'};
     private boolean needs_secure_channel= true;
     private boolean initialized_secure_channel= false;
-    private ECPrivateKey sc_ephemeralkey; 
+    private ECPrivateKey ephemeral_privkey;
+    private boolean ephemeral_privkey_transient = false;
     private AESKey sc_sessionkey;
     private Cipher sc_aes128_cbc;
     private byte[] sc_buffer;
@@ -454,9 +455,23 @@ public class Satodime extends javacard.framework.Applet {
         
         // secure channel
         sc_sessionkey= (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false); // todo: make transient?
-        sc_ephemeralkey= (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, LENGTH_EC_FP_256, false);
-        sc_aes128_cbc= Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_CBC_NOPAD, false); 
-                
+        sc_aes128_cbc= Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_CBC_NOPAD, false);
+        try {
+            // save RAM
+            ephemeral_privkey = (ECPrivateKey)KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE_TRANSIENT_DESELECT, LENGTH_EC_FP_256, false);
+            ephemeral_privkey_transient = true;
+        } catch(CryptoException e) {
+            try {
+                // save a bit less RAM
+                ephemeral_privkey = (ECPrivateKey)KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE_TRANSIENT_RESET, LENGTH_EC_FP_256, false);
+                ephemeral_privkey_transient = true;
+            } catch(CryptoException e1) {
+                // let's test the flash wear leveling \o/
+                ephemeral_privkey = (ECPrivateKey)KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, LENGTH_EC_FP_256, false);
+                Secp256k1.setCommonCurveParameters(ephemeral_privkey);
+            }
+        }
+
         // perso PKI: generate public/private keypair
         authentikey_private= (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, LENGTH_EC_FP_256, false);
         Secp256k1.setCommonCurveParameters(authentikey_private);
@@ -1510,13 +1525,14 @@ public class Satodime extends javacard.framework.Applet {
             ISOException.throwIt(SW_INVALID_PARAMETER);
             
         // generate a new ephemeral key
-        sc_ephemeralkey.clearKey(); //todo: simply generate new random S param instead?
-        Secp256k1.setCommonCurveParameters(sc_ephemeralkey);// keep public params!
+        if (ephemeral_privkey_transient) {
+            Secp256k1.setCommonCurveParameters(ephemeral_privkey);
+        }
         randomData.generateData(recvBuffer, (short)0, SIZE_ECPRIVKEY);
-        sc_ephemeralkey.setS(recvBuffer, (short)0, SIZE_ECPRIVKEY); //random value first
+        ephemeral_privkey.setS(recvBuffer, (short)0, SIZE_ECPRIVKEY); //random value first
         
         // compute the shared secret...
-        keyAgreement.init(sc_ephemeralkey);        
+        keyAgreement.init(ephemeral_privkey);        
         keyAgreement.generateSecret(buffer, ISO7816.OFFSET_CDATA, (short) 65, recvBuffer, (short)0); //pubkey in uncompressed form
         // derive sc_sessionkey & sc_mackey
         HmacSha160.computeHmacSha160(recvBuffer, (short)1, SIZE_ECCOORDX, CST_SC, (short)6, (short)6, recvBuffer, (short)33);
@@ -1530,7 +1546,7 @@ public class Satodime extends javacard.framework.Applet {
         // self signed ephemeral pubkey
         keyAgreement.generateSecret(Secp256k1.SECP256K1, Secp256k1.OFFSET_SECP256K1_G, (short) 65, buffer, (short)1); //pubkey in uncompressed form
         Util.setShort(buffer, (short)0, SIZE_ECCOORDX);
-        sigECDSA.init(sc_ephemeralkey, Signature.MODE_SIGN);
+        sigECDSA.init(ephemeral_privkey, Signature.MODE_SIGN);
         short sign_size= sigECDSA.sign(buffer, (short)0, (short)(SIZE_ECCOORDX+2), buffer, (short)(SIZE_ECCOORDX+4));
         Util.setShort(buffer, (short)(SIZE_ECCOORDX+2), sign_size);
         
