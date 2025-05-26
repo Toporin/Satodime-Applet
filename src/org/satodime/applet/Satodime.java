@@ -121,6 +121,8 @@ public class Satodime extends javacard.framework.Applet {
     private final static byte INS_UNSEAL_SATODIME_KEY= (byte)0x58; // change key state from sealed to unsealed 
     private final static byte INS_RESET_SATODIME_KEY= (byte)0x59; // change key state from unsealed to uninitialized
     private final static byte INS_INITIATE_SATODIME_TRANSFER= (byte)0x5A;
+    private final static byte INS_SIGN_SATODIME_TRANSACTION_HASH= (byte)0x5B;
+    
     // External authentication
     //private final static byte INS_CREATE_PIN = (byte) 0x40; 
     //private final static byte INS_VERIFY_PIN = (byte) 0x42;
@@ -684,6 +686,9 @@ public class Satodime extends javacard.framework.Applet {
         case INS_INITIATE_SATODIME_TRANSFER:
             sizeout= initiateSatodimeTransfer(apdu, buffer);
             break;
+        case INS_SIGN_SATODIME_TRANSACTION_HASH:
+            sizeout= signTransactionHash(apdu, buffer);
+            break;
         //PKI
         case INS_EXPORT_PKI_PUBKEY:
             sizeout= export_PKI_pubkey(apdu, buffer);
@@ -1231,7 +1236,73 @@ public class Satodime extends javacard.framework.Applet {
         buffer_offset+=sign_size;
         
         return buffer_offset;
-    }    
+    }
+
+    /**
+     * This function signs a given hash with the private key for a given key slot.
+     * This function is only available when slot status is 'unsealed'.
+     * This function does NOT change the status of the corresponding key slot.
+     *
+     * ins: 0x5B
+     * p1: key slot (0x00-0x0F)
+     * p2: 0x00
+     * data: [ hash(32b) | unlock_counter(4b) | unlock_code(20b) ]
+     *
+     * return: [ sig in DER format]
+     */
+    private short signTransactionHash(APDU apdu, byte[] buffer){
+
+        // check that setup is done
+        if (!setupDone)
+            ISOException.throwIt(SW_SETUP_NOT_DONE);
+
+        // check keyslot bounds
+        byte key_nbr = buffer[ISO7816.OFFSET_P1];
+        if ((key_nbr < 0) || (key_nbr >= MAX_NUM_KEYS) )
+            ISOException.throwIt(SW_INCORRECT_P1);
+
+        // check keyslot state
+        if (state_array[key_nbr] != STATE_UNSEALED)
+            ISOException.throwIt(SW_INCORRECT_KEYSLOT_STATE);
+
+        short buffer_offset=ISO7816.OFFSET_CDATA;
+        short bytesLeft = Util.makeShort((byte) 0x00, buffer[ISO7816.OFFSET_LC]);
+        if (bytesLeft < (short)(MessageDigest.LENGTH_SHA_256+SIZE_UNLOCK_COUNTER+SIZE_UNLOCK_CODE))
+            ISOException.throwIt(SW_INVALID_PARAMETER);
+
+        // check unlock_code
+        // check which communication protocol is used
+        byte protocol = (byte) (APDU.getProtocol() & APDU.PROTOCOL_MEDIA_MASK);
+        if (protocol == APDU.PROTOCOL_MEDIA_USB || protocol == APDU.PROTOCOL_MEDIA_DEFAULT) {
+            // nothing to check...
+            Biginteger.add1_carry(unlock_counter, (short)0, SIZE_UNLOCK_COUNTER);
+        }
+        // only check for contactless operation
+        else if (protocol == APDU.PROTOCOL_MEDIA_CONTACTLESS_TYPE_A || protocol == APDU.PROTOCOL_MEDIA_CONTACTLESS_TYPE_B) {
+            // check counter
+            buffer_offset = (short)(ISO7816.OFFSET_CDATA+MessageDigest.LENGTH_SHA_256);
+            if (Util.arrayCompare(unlock_counter, (short)0, buffer, buffer_offset, SIZE_UNLOCK_COUNTER) != 0){
+                ISOException.throwIt(SW_INCORRECT_UNLOCK_COUNTER);
+            }
+
+            // compute & check hmac(counter_secret, apduheader | counter)
+            buffer_offset = (short)(ISO7816.OFFSET_CDATA+MessageDigest.LENGTH_SHA_256+SIZE_UNLOCK_COUNTER);
+            HmacSha160.computeHmacSha160(unlock_secret, (short)0, SIZE_UNLOCK_SECRET, buffer, (short)0, buffer_offset, recvBuffer, (short)0);
+            if (Util.arrayCompare(buffer, buffer_offset, recvBuffer, (short)0, SIZE_UNLOCK_CODE) != 0){
+                ISOException.throwIt(SW_INCORRECT_UNLOCK_CODE);
+            }
+            // increase counter
+            Biginteger.add1_carry(unlock_counter, (short)0, SIZE_UNLOCK_COUNTER);
+        }
+        else {
+            ISOException.throwIt(SW_UNKNOWN_PROTOCOL_MEDIA);
+        }
+
+        // sign 32-bit hash
+        sigECDSA.init(ecprivkeys[key_nbr], Signature.MODE_SIGN);
+        short sign_size= sigECDSA.signPreComputedHash(buffer, ISO7816.OFFSET_CDATA, MessageDigest.LENGTH_SHA_256, buffer, (short)0);
+        return sign_size;
+    }
 
     /**
      * This function SEAL the corresponding slot of a satodime.
