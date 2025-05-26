@@ -79,11 +79,12 @@ public class Satodime extends javacard.framework.Applet {
      * 
      *   0.1-0.1: initial version
      *   0.1-0.2: refactor card-setup: allows to read info when setup is not done (changes are not allowed)
+     *   FF.FF-FF-FF: Refactoring, CVC & NDEF support (WIP)
      */ 
-    private final static byte PROTOCOL_MAJOR_VERSION = (byte) 0; 
-    private final static byte PROTOCOL_MINOR_VERSION = (byte) 1;
-    private final static byte APPLET_MAJOR_VERSION = (byte) 0;
-    private final static byte APPLET_MINOR_VERSION = (byte) 2;
+    private final static byte PROTOCOL_MAJOR_VERSION = (byte) 0xff; 
+    private final static byte PROTOCOL_MINOR_VERSION = (byte) 0xff;
+    private final static byte APPLET_MAJOR_VERSION = (byte) 0xff;
+    private final static byte APPLET_MINOR_VERSION = (byte) 0xff;
 
     // Maximum number of keys handled by the Cardlet
     //private final static byte MAX_NUM_KEYS = (byte) 3;
@@ -113,6 +114,7 @@ public class Satodime extends javacard.framework.Applet {
     private final static byte INS_GET_SATODIME_KEYSLOT_STATUS= (byte)0x51;
     private final static byte INS_SET_SATODIME_KEYSLOT_STATUS= (byte)0x52;
     //private final static byte INS_GET_SATODIME_UNLOCK_CODE= (byte)0x53; // deprecated
+    private final static byte INS_CHECK_SATODIME_UNLOCK_CODE= (byte)0x54; // do not change state
     private final static byte INS_GET_SATODIME_PUBKEY= (byte)0x55; // do not change state
     private final static byte INS_GET_SATODIME_PRIVKEY= (byte)0x56;// do not change state
     private final static byte INS_SEAL_SATODIME_KEY= (byte)0x57; // change key state from uninitialized to sealed
@@ -329,13 +331,13 @@ public class Satodime extends javacard.framework.Applet {
     //short eckeys_flag=0x0000; //flag bit set to 1 when corresponding key is initialised 
     
     // unlock_code data
+    private boolean fixed_unlock_secret = false; // is unlock_secret fixed during install, or generated randomly during each setup
     private byte[] unlock_secret; 
     private byte[] unlock_counter;
     private static final byte SIZE_UNLOCK_SECRET=20;
     private static final byte SIZE_UNLOCK_COUNTER=4;
     
     // METADATA for each keypair
-    //private byte[] unlock_code_array; // required for operations that change keystate via NFC
     private byte[] state_array;
     private byte[] type_array; // key type
     private byte[] asset_array; 
@@ -397,11 +399,12 @@ public class Satodime extends javacard.framework.Applet {
 
     
     /****************************************
-     * Methods                              *
+     *               Methods                *
      ****************************************/
     
     public static void install(byte[] bArray, short bOffset, byte bLength) {
         // extract install parameters if any
+        // install parameters: [ nb_slots(1b, optional) | cvc_size(1b, optional) | cvc ]
         byte aidLength = bArray[bOffset];
         short controlLength = (short)(bArray[(short)(bOffset+1+aidLength)]&(short)0x00FF);
         short dataLength = (short)(bArray[(short)(bOffset+1+aidLength+1+controlLength)]&(short)0x00FF);
@@ -411,12 +414,12 @@ public class Satodime extends javacard.framework.Applet {
     private Satodime(byte[] bArray, short bOffset, short bLength) {
         
         // recover MAX_NUM_KEYS from install params
-        if (bLength>0){
+        if (bLength>=1){
             MAX_NUM_KEYS= bArray[bOffset];
         }else{
             MAX_NUM_KEYS=3; // default value
         }
-        
+
         // Temporary working arrays
         try {
             tmpBuffer = JCSystem.makeTransientByteArray(TMP_BUFFER_SIZE, JCSystem.CLEAR_ON_DESELECT);
@@ -503,18 +506,27 @@ public class Satodime extends javacard.framework.Applet {
         contract_array= new byte[(short)MAX_NUM_KEYS*SIZE_CONTRACT];
         tokenid_array= new byte[(short)MAX_NUM_KEYS*SIZE_TOKENID];
         data_array= new byte[(short)MAX_NUM_KEYS*SIZE_DATA];
-        //unlock_code_array= new byte[(short)MAX_NUM_KEYS*SIZE_UNLOCK_CODE];
-        
+
         // unlock data
         unlock_secret= new byte[SIZE_UNLOCK_SECRET];
         unlock_counter= new byte[SIZE_UNLOCK_COUNTER];
-        //Util.arrayFillNonAtomic(unlock_counter, (short)0, SIZE_UNLOCK_COUNTER, (byte)0); //todo: use a random initial value?
         randomData.generateData(unlock_counter, (short)0, SIZE_UNLOCK_COUNTER);
         randomData.generateData(unlock_secret, (short)0, SIZE_UNLOCK_SECRET);
-        
+
+        // recover CVC from install params?
+        if (bLength>=2){
+            // CVC = [cvc_size(1b) | cvc ]
+            byte cvc_size = bArray[(short)(bOffset+1)];
+            if ((cvc_size>0) && (cvc_size<=SIZE_UNLOCK_SECRET) && (bLength >= (2+cvc_size))){
+                Util.arrayFillNonAtomic(unlock_secret, (short)0, SIZE_UNLOCK_SECRET, (byte)0x00);
+                Util.arrayCopy(bArray, (short)(bOffset+2), unlock_secret, (short)0, cvc_size);
+                fixed_unlock_secret = true;
+            }
+        }
+
         // set keys state to uninitialized
         Util.arrayFillNonAtomic(state_array, (short)0, MAX_NUM_KEYS, STATE_UNINITIALIZED);
-        
+
         // card label
         card_label = new byte[MAX_CARD_LABEL_SIZE];  
         
@@ -651,6 +663,9 @@ public class Satodime extends javacard.framework.Applet {
 //        case INS_GET_SATODIME_UNLOCK_CODE:
 //            sizeout= getSatodimeUnlockCode(apdu, buffer);
 //            break;
+        case INS_CHECK_SATODIME_UNLOCK_CODE:
+            sizeout = checkSatodimeUnlockCode(apdu, buffer);
+            break;
         case INS_GET_SATODIME_PUBKEY:
             sizeout= getSatodimePubkey(apdu, buffer);
             break;
@@ -745,10 +760,15 @@ public class Satodime extends javacard.framework.Applet {
         short bytesLeft = Util.makeShort((byte) 0x00, buffer[ISO7816.OFFSET_LC]);
         short base = (short) (ISO7816.OFFSET_CDATA);
         
-        // generate initial unlock_secret
+        // generate random unlock_counter
         randomData.generateData(unlock_counter, (short)0, SIZE_UNLOCK_COUNTER);
-        randomData.generateData(unlock_secret, (short)0, SIZE_UNLOCK_SECRET);
-        // 
+
+        // if a CVC is used, the unlock secret is initialized during install and should not be changed!
+        if (!fixed_unlock_secret) {
+            randomData.generateData(unlock_secret, (short) 0, SIZE_UNLOCK_SECRET);
+        }
+
+        // setup is done
         setupDone = true;
         
         // return unlock data
@@ -908,7 +928,7 @@ public class Satodime extends javacard.framework.Applet {
      *  p1: 0x00
      *  p2: 0x00
      *  data: (none)
-     *  return: [unlock_counter | nb_keys_slots(1b) | key_status(nb_key_slots bytes) ]
+     *  return: [unlock_counter | nb_keys_slots(1b) | key_status(nb_key_slots bytes) |  fixed_unlock_secret(1b)]
      */
     private short getSatodimeStatus(APDU apdu, byte[] buffer){
        
@@ -917,13 +937,19 @@ public class Satodime extends javacard.framework.Applet {
         Util.arrayCopyNonAtomic(unlock_counter, (short)0, buffer, buffer_offset, SIZE_UNLOCK_COUNTER);
         buffer_offset+=SIZE_UNLOCK_COUNTER;
         // nb_keys_slots
-        buffer[buffer_offset]=  MAX_NUM_KEYS;
-        buffer_offset++;
+        buffer[buffer_offset++]=  MAX_NUM_KEYS;
         // key_status
         for (byte i=0; i<MAX_NUM_KEYS; i++){
            buffer[buffer_offset++]= state_array[i];
         }
-        return (short)(SIZE_UNLOCK_COUNTER + 1 + MAX_NUM_KEYS);
+        // fixed_unlock_secret
+        if (fixed_unlock_secret){
+            buffer[buffer_offset++] = 0x01;
+        } else {
+            buffer[buffer_offset++] = 0x00;
+        }
+
+        return buffer_offset;
     }
     
     /**
@@ -1091,7 +1117,40 @@ public class Satodime extends javacard.framework.Applet {
         
         return buffer_offset;
     }
-        
+
+    /**
+     * This function check a given unlock counter and unlock_code and check validity.
+     * This is useful for a client application to confirm their ownership.
+     *
+     *  ins: 0x54
+     *  p1: RFU
+     *  p2: RFU
+     *  data: [ unlock_counter(4b) | unlock_code(20b) ]
+     *  return: [], throws if either unlock_counter or unlock_code is incorrect
+     */
+    private short checkSatodimeUnlockCode(APDU apdu, byte[] buffer){
+        // check that setup is done
+        if (!setupDone)
+            ISOException.throwIt(SW_SETUP_NOT_DONE);
+
+        short buffer_offset=ISO7816.OFFSET_CDATA;
+
+        // check counter
+        if (Util.arrayCompare(unlock_counter, (short)0, buffer, buffer_offset, SIZE_UNLOCK_COUNTER) != 0){
+            ISOException.throwIt(SW_INCORRECT_UNLOCK_COUNTER);
+        }
+        buffer_offset+=SIZE_UNLOCK_COUNTER;
+        // compute & check hmac(counter_secret, apduheader | counter)
+        HmacSha160.computeHmacSha160(unlock_secret, (short)0, SIZE_UNLOCK_SECRET, buffer, (short)0, buffer_offset, recvBuffer, (short)0);
+        if (Util.arrayCompare(buffer, buffer_offset, recvBuffer, (short)0, SIZE_UNLOCK_CODE) != 0){
+            ISOException.throwIt(SW_INCORRECT_UNLOCK_CODE);
+        }
+        // increase counter
+        Biginteger.add1_carry(unlock_counter, (short)0, SIZE_UNLOCK_COUNTER);
+
+        return 0;
+    }
+
     /**
      * This function returns the PRIVATE key for a given slot.
      * This function is only available when slot status is 'unsealed'.
@@ -1494,7 +1553,7 @@ public class Satodime extends javacard.framework.Applet {
             ISOException.throwIt(SW_UNKNOWN_PROTOCOL_MEDIA);
         }
         
-        // force setup and generation of new unlock_code_array at next connection
+        // force setup and generation of new unlock_secret at next connection
         // New owner is reponsible to check that setup is indeed activated
         setupDone= false;
        
