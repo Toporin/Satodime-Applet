@@ -49,7 +49,6 @@ import javacard.framework.APDU;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
-import javacard.framework.OwnerPIN;
 import javacard.framework.SystemException;
 import javacard.framework.Util;
 import javacard.security.AESKey;
@@ -59,7 +58,6 @@ import javacard.security.CryptoException;
 import javacard.security.Key;
 import javacard.security.KeyAgreement;
 import javacard.security.KeyBuilder;
-//import javacard.security.KeyPair;
 import javacard.security.Signature;
 import javacard.security.MessageDigest;
 import javacard.security.RandomData;
@@ -900,7 +898,7 @@ public class Satodime extends javacard.framework.Applet {
      * The first byte of the ndef byte array is the size of the remaining bytes.
      *
      *  ins: 0x3F
-     *  p1: 0x00
+     *  p1: ndef_policy
      *  p2: operation (0x00 to set NDEF, 0x01 to get NDEF)
      *  data: [ndef_size (1b) | ndef] if p2==0x00 else (none)
      *  return: [ndef_size(1b) | ndef] if p2==0x01 else (none)
@@ -911,8 +909,25 @@ public class Satodime extends javacard.framework.Applet {
         switch (op) {
             case 0x00: // set ndef from buffer
 
-                // todo: check ownership?
+                // todo: check ownership
 
+                // set ndef_policy
+                byte p1 = buffer[ISO7816.OFFSET_P1];
+                switch (p1){
+                    case 0x00: // disable NDEF
+                        SharedMemory.ndef_policy = 0x00;
+                        return (short)0;
+                    case 0x01: // static NDEF
+                        SharedMemory.ndef_policy = 0x01;
+                        break;
+                    case 0x02: // dynamic URL with slot info
+                        SharedMemory.ndef_policy = 0x02;
+                        return (short)0;
+                    default:
+                        ISOException.throwIt(SW_INCORRECT_P2);
+                }
+
+                //set ndef value
                 short bytes_left = Util.makeShort((byte) 0x00, buffer[ISO7816.OFFSET_LC]);
                 short buffer_offset = ISO7816.OFFSET_CDATA;
                 if (bytes_left>0){
@@ -924,12 +939,15 @@ public class Satodime extends javacard.framework.Applet {
                         ISOException.throwIt(SW_INVALID_PARAMETER);
                     Util.arrayCopyNonAtomic(buffer, buffer_offset, SharedMemory.ndefDataFile, (short)0, bytes_left);
                 }
-                else if (bytes_left==0){//reset ndef
-                    SharedMemory.ndefDataFile[0] = (byte)0x00;
-                }
+
+                // if bytes_left == 0, just modify ndef_policy, do not change ndef value...
+//                else if (bytes_left==0){//reset ndef
+//                    SharedMemory.ndefDataFile[0] = (byte)0x00;
+                //}
                 return (short)0;
 
             case 0x01: // get ndef
+                // todo: return ndef policy
                 short ndef_size = Util.makeShort((byte) 0x00, SharedMemory.ndefDataFile[0]);
                 ndef_size++;
                 Util.arrayCopyNonAtomic(SharedMemory.ndefDataFile, (short)0, buffer, (short)0, ndef_size);
