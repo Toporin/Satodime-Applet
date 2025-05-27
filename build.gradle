@@ -1,0 +1,47 @@
+apply plugin: 'javacard'
+
+buildscript {
+  repositories {
+    maven { url 'http://releases.marmeladburk.fidesmo.com/' }
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+  }
+
+  dependencies {
+    classpath 'com.fidesmo:gradle-javacard:0.2.7'
+  }
+}
+
+javacard {
+  sdkVersion = "3.0.4"
+
+  cap {
+    aid = '0x53:0x61:0x74:0x6f:0x44:0x69:0x6d:0x65'
+    packageName = 'org.satodime.applet'
+    applet {
+      aid = '0x53:0x61:0x74:0x6f:0x44:0x69:0x6d:0x65:0x00'
+      className = 'Satodime'
+    }
+    applet {
+      aid = '0x53:0x61:0x74:0x6f:0x44:0x69:0x6d:0x65:0x01'
+      className = 'NDEFApplet'
+    }
+    version = '0.2'
+  }
+}
+
+repositories {
+  mavenCentral()
+  maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+}
+
+task install (type: org.satodime.build.InstallTask)
+tasks.install.dependsOn(convertJavacard)
+
+compileJava {
+  sourceCompatibility = 1.6
+  targetCompatibility = 1.6
+}

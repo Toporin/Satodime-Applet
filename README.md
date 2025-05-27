@@ -37,6 +37,7 @@ Applications are available to be used with a Satodime:
 - Windows, Mac & Linux: [Satochip-Utils](https://github.com/Toporin/Satochip-Utils)
 - Android: [Satodime-Android](https://github.com/Toporin/Satodime-Android) - [Google Play](https://play.google.com/store/apps/details?id=org.satochip.satodimeapp)
 - iOS: [Satodime-iOS](https://github.com/Toporin/Satodime-iOS) - [Apple Store](https://apps.apple.com/us/app/satodime/id1672273462)
+- For developers: there is a Command Line Interface available with the pysatochip library: [Github](https://github.com/Toporin/pysatochip), [Pypi](https://pypi.org/project/pysatochip/)
 
 # SDK
 
@@ -51,11 +52,32 @@ For supported hardware, refer to the [Satochip applet repository](https://github
 
 # Buidl & install
 
+## Building using Ant (legacy)
+
 You can build the javacard CAP files or use the last [release](https://github.com/Toporin/SatochipApplet/releases).
 
 To generate the CAP file from the sources, you can use the [ant-javacard](https://github.com/martinpaljak/ant-javacard) Ant task (see the instructions on the ant-javacard github repository).
 
 For detailed build and installation, refer to the [Satochip applet repository](https://github.com/Toporin/SatoChipApplet). 
+
+## Building using Gradle (new)
+
+The project can also be built using Gradle with the [Fidesmo Javacard Gradle plugin](https://github.com/fidesmo/gradle-javacard).
+
+Using this approach allows to load the NDEF applet at the same time (allows to automatically open the right application by simply tapping the card).
+
+Using this approach allows to load the NDEF applet at the same time (allows to automatically open the right application on Android by simply tapping the card).
+
+For compiling the javacard code, you first need to download the javacard SDK into the project in the `sdks` folder:
+```
+git submodule add https://github.com/martinpaljak/oracle_javacard_sdks sdks
+```
+
+Then you must set the JavaCard HOME. The gradle.properties file has a setting with the property "com.fidesmo.gradle.javacard.home" set to the correct path.
+
+To compile the javacard code and generate a cap file, simply run `./gradlew convertJavacard`. The cap file will be compiled in the `build/javacard/org/satodime/applet` folder.
+
+To load the cap file into a blank smart card, connect a card reader with the card inserted and run `./gradlew install`
 
 # License
 

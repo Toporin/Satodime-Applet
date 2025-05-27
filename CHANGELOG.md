@@ -43,7 +43,14 @@ add command to check unlock secret
   * INS: 0x5B
   * This function is only available when slot status is 'unsealed'.
 
-  
+
+* Add NDEF support via the NDEFApplet and a data array shared with the Satodime applet.
+  * NDEF data can be changed through the Satodime applet, after PIN validation
+
+* Switch to gradle for building applet with NDEF support
+  * based on https://github.com/fidesmo/gradle-javacard
+
+
 ## [0.1-0.2]
 
 * refactor card-setup: allows to read info when setup is not done (changes are not allowed)

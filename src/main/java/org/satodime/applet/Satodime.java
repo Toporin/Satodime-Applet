@@ -134,6 +134,7 @@ public class Satodime extends javacard.framework.Applet {
     //private final static byte INS_LIST_PINS = (byte) 0x48;
     private final static byte INS_GET_STATUS = (byte) 0x3C;
     private final static byte INS_CARD_LABEL = (byte) 0x3D;
+    private final static byte INS_SET_NDEF= (byte)0x3F;
     
     // HD wallet
     //private final static byte INS_BIP32_IMPORT_SEED= (byte) 0x6C;
@@ -649,6 +650,9 @@ public class Satodime extends javacard.framework.Applet {
         case INS_CARD_LABEL:
             sizeout = cardLabel(apdu, buffer);
             break;
+        case INS_SET_NDEF:
+            sizeout= cardNdef(apdu, buffer);
+            break;
         case INS_EXPORT_AUTHENTIKEY:
             sizeout= getAuthentikey(apdu, buffer);
             break;
@@ -891,6 +895,53 @@ public class Satodime extends javacard.framework.Applet {
         return (short) 0;
     }
 
+    /**
+     * This function allows to define or recover a the NDEF data bytes.
+     * The first byte of the ndef byte array is the size of the remaining bytes.
+     *
+     *  ins: 0x3F
+     *  p1: 0x00
+     *  p2: operation (0x00 to set NDEF, 0x01 to get NDEF)
+     *  data: [ndef_size (1b) | ndef] if p2==0x00 else (none)
+     *  return: [ndef_size(1b) | ndef] if p2==0x01 else (none)
+     */
+    private short cardNdef(APDU apdu, byte[] buffer){
+
+        byte op = buffer[ISO7816.OFFSET_P2];
+        switch (op) {
+            case 0x00: // set ndef from buffer
+
+                // todo: check ownership?
+
+                short bytes_left = Util.makeShort((byte) 0x00, buffer[ISO7816.OFFSET_LC]);
+                short buffer_offset = ISO7816.OFFSET_CDATA;
+                if (bytes_left>0){
+                    short ndef_size = Util.makeShort((byte) 0x00, buffer[buffer_offset]);
+                    if (ndef_size != (short)(bytes_left - 1)) {
+                        ISOException.throwIt(SW_INVALID_PARAMETER);
+                    }
+                    if (bytes_left>SharedMemory.ndefDataFile.length)
+                        ISOException.throwIt(SW_INVALID_PARAMETER);
+                    Util.arrayCopyNonAtomic(buffer, buffer_offset, SharedMemory.ndefDataFile, (short)0, bytes_left);
+                }
+                else if (bytes_left==0){//reset ndef
+                    SharedMemory.ndefDataFile[0] = (byte)0x00;
+                }
+                return (short)0;
+
+            case 0x01: // get ndef
+                short ndef_size = Util.makeShort((byte) 0x00, SharedMemory.ndefDataFile[0]);
+                ndef_size++;
+                Util.arrayCopyNonAtomic(SharedMemory.ndefDataFile, (short)0, buffer, (short)0, ndef_size);
+                return ndef_size;
+
+            default:
+                ISOException.throwIt(SW_INCORRECT_P2);
+
+        }//end switch()
+
+        return (short)0;
+    }
         
     /**
      * This function returns the authentikey public key.
