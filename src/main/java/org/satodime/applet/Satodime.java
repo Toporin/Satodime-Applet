@@ -322,7 +322,7 @@ public class Satodime extends javacard.framework.Applet {
     
     // Key objects (allocated on demand)
     private static final short SIZE_ECPRIVKEY= (short)32;
-    private static final short SIZE_ECPUBKEY= (short)65;
+    static final short SIZE_ECPUBKEY= (short)65;
     private static final short SIZE_ECCOORDX= (short)32;
     private static final short SIZE_ENTROPY= (short)32;
     private ECPrivateKey[] ecprivkeys;
@@ -347,7 +347,7 @@ public class Satodime extends javacard.framework.Applet {
     private byte[] tokenid_array;
     private byte[] data_array;
     
-    private static final byte SIZE_SLIP44=4;
+    static final byte SIZE_SLIP44=4;
     private static final byte SIZE_CONTRACT=2+32;
     private static final byte SIZE_TOKENID=2+32;
     private static final byte SIZE_DATA=2+64;
@@ -370,8 +370,10 @@ public class Satodime extends javacard.framework.Applet {
     //private static final byte ASSET_ERC721=0x41;
     //private static final byte ASSET_BEP721=0x42;
     //private static final byte ASSET_OTHER=(byte)0xff;
-    
-    
+
+    private SharedObject sharedObject;
+
+
     /*********************************************
      *            Secure Channel                 *
      *********************************************/
@@ -530,7 +532,11 @@ public class Satodime extends javacard.framework.Applet {
 
         // card label
         card_label = new byte[MAX_CARD_LABEL_SIZE];  
-        
+
+        // create sharedObject (shared with NDEF applet)
+        sharedObject = SharedObject.getInstance(MAX_NUM_KEYS);
+
+
     } // end of constructor
 
     public boolean select() {
@@ -1028,8 +1034,7 @@ public class Satodime extends javacard.framework.Applet {
     
     /**
      * This function returns the satodime status of a specific key slot.
-     * Info includes: status,  
-     * Unlock_code correct value is only returned when using a card reader (not via NFC) 
+     * Info includes: status,
      * 
      *  ins: 0x
      *  p1: key slot (0x00-0x0F)
@@ -1181,7 +1186,7 @@ public class Satodime extends javacard.framework.Applet {
         // pubkey
         Util.arrayCopyNonAtomic(ecpubkeys, (short)(key_nbr*SIZE_ECPUBKEY), buffer, buffer_offset, SIZE_ECPUBKEY);
         buffer_offset+=SIZE_ECPUBKEY;
-        
+
         // key signed by authentikey
         sigECDSA.init(authentikey_private, Signature.MODE_SIGN);
         short sign_size= sigECDSA.sign(buffer, (short)0, buffer_offset, buffer, (short)(buffer_offset+2));
@@ -1457,7 +1462,10 @@ public class Satodime extends javacard.framework.Applet {
         buffer_offset+=2;
         Util.arrayCopyNonAtomic(ecpubkeys, (short)(key_nbr*SIZE_ECPUBKEY), buffer, buffer_offset, pubkey_size);
         buffer_offset+=pubkey_size;
-        
+
+        // sharedObject
+        Util.arrayCopyNonAtomic(ecpubkeys, (short)(key_nbr*SIZE_ECPUBKEY), sharedObject.ecpubkeys, (short)(key_nbr*SIZE_ECPUBKEY), SIZE_ECPUBKEY);
+
         // sign with authentikey
         sigECDSA.init(authentikey_private, Signature.MODE_SIGN);
         short sign_size= sigECDSA.sign(buffer, (short)0, buffer_offset, buffer, (short)(buffer_offset+2));
@@ -1631,7 +1639,9 @@ public class Satodime extends javacard.framework.Applet {
         Util.arrayFillNonAtomic(card_entropy_array, (short)(key_nbr*SIZE_ENTROPY), SIZE_ENTROPY, (byte)0);
         // reset pubkey
         Util.arrayFillNonAtomic(ecpubkeys, (short)(key_nbr*SIZE_ECPUBKEY), SIZE_ECPUBKEY, (byte)0);
-        
+        // reset pubkey in sharedObject
+        Util.arrayFillNonAtomic(sharedObject.ecpubkeys, (short)(key_nbr*SIZE_ECPUBKEY), SIZE_ECPUBKEY, (byte)0);
+
         // reset metadata
         type_array[key_nbr]= (byte)0;
         asset_array[key_nbr]= (byte)0;

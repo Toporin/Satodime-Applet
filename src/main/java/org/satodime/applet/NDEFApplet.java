@@ -25,6 +25,9 @@ public class NDEFApplet extends Applet {
 
     private short selectedFile;
 
+    // shared object
+    private SharedObject sharedObject;
+
     /**
      * Invoked during applet installation. Creates an instance of this class. The installation parameters are passed in
      * the given buffer.
@@ -55,6 +58,8 @@ public class NDEFApplet extends Applet {
         if ((dataLen > 2) && ((short)(dataLen - 2) == Util.makeShort(bArray[(short)(c9Off + 1)], bArray[(short)(c9Off + 2)]))) {
             Util.arrayCopyNonAtomic(bArray, c9Off, SharedMemory.ndefDataFile, (short) 0, (short)(dataLen + 1));
         }
+
+        sharedObject = SharedObject.getInstance((byte)1); // todo: ensure nb_slot is consistent
 
         register(bArray, (short) (bOffset + 1), bArray[bOffset]);
     }
@@ -121,7 +126,18 @@ public class NDEFApplet extends Applet {
                 break;
             case FILEID_NDEF_DATA:
 
-                data = SharedMemory.ndefDataFile;
+                if (SharedMemory.ndef_policy == 0x00){
+                    ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED); // 0x6985
+                    return;
+                }
+                else if (SharedMemory.ndef_policy == 0x02){
+                    sharedObject.populateNdefDataFile();
+                    data = sharedObject.ndefDataFile;
+                } else {
+                    // use static url by default
+                    data = SharedMemory.ndefDataFile;
+                }
+
                 break;
 
             default:

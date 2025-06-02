@@ -9,7 +9,7 @@ import javacard.security.*;
 public class SharedMemory {
 
     /** NDEF POLICY: 0 - disabled, 1 - static value, 2 - dynamic slot data **/
-    static byte ndef_policy = (byte) 1;
+    static byte ndef_policy = (byte) 2;
 
     /** The NDEF data file. Read through the NDEFApplet. **/
     static final short MAX_NDEF_DATA_FILE_SIZE = 224;
