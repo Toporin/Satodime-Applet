@@ -79,10 +79,10 @@ public class Satodime extends javacard.framework.Applet {
      *   0.1-0.2: refactor card-setup: allows to read info when setup is not done (changes are not allowed)
      *   FF.FF-FF-FF: Refactoring, CVC & NDEF support (WIP)
      */ 
-    private final static byte PROTOCOL_MAJOR_VERSION = (byte) 0xff; 
-    private final static byte PROTOCOL_MINOR_VERSION = (byte) 0xff;
-    private final static byte APPLET_MAJOR_VERSION = (byte) 0xff;
-    private final static byte APPLET_MINOR_VERSION = (byte) 0xff;
+    final static byte PROTOCOL_MAJOR_VERSION = (byte) 0xff;
+    final static byte PROTOCOL_MINOR_VERSION = (byte) 0xff;
+    final static byte APPLET_MAJOR_VERSION = (byte) 0xff;
+    final static byte APPLET_MINOR_VERSION = (byte) 0xff;
 
     // Maximum number of keys handled by the Cardlet
     //private final static byte MAX_NUM_KEYS = (byte) 3;
@@ -277,10 +277,9 @@ public class Satodime extends javacard.framework.Applet {
     private final static byte OP_FINALIZE = (byte) 0x03;
 
     // JC API 2.2.2 does not define these constants:
-    private final static byte ALG_ECDSA_SHA_256= (byte) 33;
-    private final static byte ALG_EC_SVDP_DH_PLAIN= (byte) 3; //https://javacard.kenai.com/javadocs/connected/javacard/security/KeyAgreement.html#ALG_EC_SVDP_DH_PLAIN
-    private final static byte ALG_EC_SVDP_DH_PLAIN_XY= (byte) 6; //https://docs.oracle.com/javacard/3.0.5/api/javacard/security/KeyAgreement.html#ALG_EC_SVDP_DH_PLAIN_XY
-    private final static short LENGTH_EC_FP_256= (short) 256;
+    final static byte ALG_ECDSA_SHA_256= (byte) 33;
+    final static byte ALG_EC_SVDP_DH_PLAIN_XY= (byte) 6; //https://docs.oracle.com/javacard/3.0.5/api/javacard/security/KeyAgreement.html#ALG_EC_SVDP_DH_PLAIN_XY
+    final static short LENGTH_EC_FP_256= (short) 256;
         
     /****************************************
      *    Instance variables declaration    *
@@ -534,8 +533,8 @@ public class Satodime extends javacard.framework.Applet {
         card_label = new byte[MAX_CARD_LABEL_SIZE];  
 
         // create sharedObject (shared with NDEF applet)
-        sharedObject = SharedObject.getInstance(MAX_NUM_KEYS);
-
+        sharedObject = SharedObject.getInstance();
+        sharedObject.init(tmpBuffer, MAX_NUM_KEYS);
 
     } // end of constructor
 

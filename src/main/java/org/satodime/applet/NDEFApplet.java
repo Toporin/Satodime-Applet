@@ -69,7 +69,9 @@ public class NDEFApplet extends Applet {
             Util.arrayCopyNonAtomic(bArray, c9Off, SharedMemory.ndefDataFile, (short) 0, dataLen);
         }
 
-        sharedObject = SharedObject.getInstance((byte)1); // todo: ensure nb_slot is consistent
+        //sharedObject = SharedObject.getInstance(null, (byte)0); // shared object should be instanciated in Satodime constructor!
+        //sharedObject = SharedObject.getInstance(null, (byte)0);
+        sharedObject = SharedObject.getInstance();
 
         register(bArray, (short) (bOffset + 1), bArray[bOffset]);
     }
@@ -150,15 +152,19 @@ public class NDEFApplet extends Applet {
                     return;
                 }
                 else if (SharedMemory.ndef_policy == 0x02){
-//                    dataLen = sharedObject.getNdefDataSize((byte)0);
-//                    sharedObject.populateNdefDataFile(offset);
-//                    data = sharedObject.ndefDataFile;
+                    dataLen = sharedObject.ndefDataFileSize;
+                    if (offset== 0) {
+                        // todo: update dynamically...
+                        // just generate random nonce and signature
+                        sharedObject.populateNdefDataFile();
+                    }
+                    data = sharedObject.ndefDataFile;
 
                     // dynamic data
-                    dataLen = sharedObject.ndefDataFileSize;
-                    le = sharedObject.populateNdefDataFile(offset, apduBuffer);
-                    data = apduBuffer;
-                    offset = 0;
+//                    dataLen = sharedObject.ndefDataFileSize;
+//                    le = sharedObject.populateNdefDataFile(offset, apduBuffer);
+//                    data = apduBuffer;
+//                    offset = 0;
 
                 } else {
                     // use static url by default
