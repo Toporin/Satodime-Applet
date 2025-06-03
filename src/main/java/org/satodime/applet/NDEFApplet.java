@@ -69,8 +69,6 @@ public class NDEFApplet extends Applet {
             Util.arrayCopyNonAtomic(bArray, c9Off, SharedMemory.ndefDataFile, (short) 0, dataLen);
         }
 
-        //sharedObject = SharedObject.getInstance(null, (byte)0); // shared object should be instanciated in Satodime constructor!
-        //sharedObject = SharedObject.getInstance(null, (byte)0);
         sharedObject = SharedObject.getInstance();
 
         register(bArray, (short) (bOffset + 1), bArray[bOffset]);
