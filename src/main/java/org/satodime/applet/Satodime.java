@@ -419,7 +419,7 @@ public class Satodime extends javacard.framework.Applet {
         if (bLength>=1){
             MAX_NUM_KEYS= bArray[bOffset];
         }else{
-            MAX_NUM_KEYS=3; // default value
+            MAX_NUM_KEYS=1; // default value
         }
 
         // Temporary working arrays
@@ -1147,6 +1147,9 @@ public class Satodime extends javacard.framework.Applet {
             // tokenid
             Util.arrayCopyNonAtomic(buffer, buffer_offset, tokenid_array, (short)(key_nbr*SIZE_TOKENID), SIZE_TOKENID);
             buffer_offset+=SIZE_TOKENID;
+
+            // update slot slip44 in NDEF data
+            sharedObject.setSlotSlip44(key_nbr, slip44_array, (short)(key_nbr*SIZE_SLIP44), SIZE_SLIP44);
         }
         else if (p2==0x01){
             // data
@@ -1379,9 +1382,10 @@ public class Satodime extends javacard.framework.Applet {
 
     /**
      * This function SEAL the corresponding slot of a satodime.
-     * This function is only available when slot status is 'unitialized'
+     * This function is only available when slot status is 'unitialized'.
      * This changes the status of the slot from 'unitialized' to 'sealed'.
-     * Unlock code is only checked if used with NFC interface
+     * Unlock code is only checked if used with NFC interface.
+     * The relevant NDEF data is also updated in the sharedObject.
      * 
      *  ins: 0x
      *  p1: key slot (0x00-0x0F)
@@ -1454,16 +1458,15 @@ public class Satodime extends javacard.framework.Applet {
         Util.arrayFillNonAtomic(recvBuffer, (short)0, SIZE_ECPRIVKEY, (byte)0);// erase secret bytes
         
         // compute public key
-        buffer_offset=(short)0;
         keyAgreement.init(ecprivkeys[key_nbr]);
         short pubkey_size= keyAgreement.generateSecret(Secp256k1.SECP256K1, Secp256k1.OFFSET_SECP256K1_G, SIZE_ECPUBKEY, ecpubkeys, (short)(key_nbr*SIZE_ECPUBKEY)); 
+
+        // save pubkey to buffer for export
+        buffer_offset=(short)0;
         Util.setShort(buffer, buffer_offset, pubkey_size);
         buffer_offset+=2;
         Util.arrayCopyNonAtomic(ecpubkeys, (short)(key_nbr*SIZE_ECPUBKEY), buffer, buffer_offset, pubkey_size);
         buffer_offset+=pubkey_size;
-
-        // sharedObject
-        Util.arrayCopyNonAtomic(ecpubkeys, (short)(key_nbr*SIZE_ECPUBKEY), sharedObject.ecpubkeys, (short)(key_nbr*SIZE_ECPUBKEY), SIZE_ECPUBKEY);
 
         // sign with authentikey
         sigECDSA.init(authentikey_private, Signature.MODE_SIGN);
@@ -1471,7 +1474,12 @@ public class Satodime extends javacard.framework.Applet {
         Util.setShort(buffer, buffer_offset, sign_size);
         buffer_offset+=2;
         buffer_offset+=sign_size;
-        
+
+        // update slot state in NDEF data through sharedObject
+        sharedObject.setSlotState(key_nbr, STATE_SEALED);
+        // update slot pubkey in NDEF data
+        sharedObject.setSlotPubkey(key_nbr, ecpubkeys, (short)(key_nbr*SIZE_ECPUBKEY), pubkey_size);
+
         // change state
         state_array[key_nbr] = STATE_SEALED;
         
@@ -1564,7 +1572,10 @@ public class Satodime extends javacard.framework.Applet {
         Util.setShort(buffer, buffer_offset, sign_size);
         buffer_offset+=2;
         buffer_offset+=sign_size;
-                
+
+        // update slot state in NDEF data through sharedObject
+        sharedObject.setSlotState(key_nbr, STATE_UNSEALED);
+
         return buffer_offset;
     } 
    
@@ -1638,8 +1649,6 @@ public class Satodime extends javacard.framework.Applet {
         Util.arrayFillNonAtomic(card_entropy_array, (short)(key_nbr*SIZE_ENTROPY), SIZE_ENTROPY, (byte)0);
         // reset pubkey
         Util.arrayFillNonAtomic(ecpubkeys, (short)(key_nbr*SIZE_ECPUBKEY), SIZE_ECPUBKEY, (byte)0);
-        // reset pubkey in sharedObject
-        Util.arrayFillNonAtomic(sharedObject.ecpubkeys, (short)(key_nbr*SIZE_ECPUBKEY), SIZE_ECPUBKEY, (byte)0);
 
         // reset metadata
         type_array[key_nbr]= (byte)0;
@@ -1648,7 +1657,10 @@ public class Satodime extends javacard.framework.Applet {
         Util.arrayFillNonAtomic(contract_array, (short)(key_nbr*SIZE_CONTRACT), SIZE_CONTRACT, (byte)0);
         Util.arrayFillNonAtomic(tokenid_array, (short)(key_nbr*SIZE_TOKENID), SIZE_TOKENID, (byte)0);
         Util.arrayFillNonAtomic(data_array, (short)(key_nbr*SIZE_DATA), SIZE_DATA, (byte)0);
-        
+
+        // reset slot info in NDEF data through sharedObject: state, slip44 & pubkey
+        sharedObject.resetSlot(key_nbr);
+
         return (short)0;
     } 
     

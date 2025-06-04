@@ -39,21 +39,16 @@ import javacard.security.RandomData;
 
 public class SharedObject {
 
+    /** singleton object shared with Satodime and NDEF applet **/
     private static SharedObject instance;
 
     private static byte[] tmpBuffer;
-
-    /** The NDEF data file. Read through the NDEFApplet. **/
-    //static final short MAX_NDEF_DATA_FILE_SIZE = 224;
-    static final short MAX_NDEF_DATA_FILE_SIZE = 400;
 
     /** base URL for dynamic url **/
     static final byte[] BASE_URL = {'e','x','a','m','p','l','e','.','c','o','m', '/'};
 
     /** for bytes to hex conversion **/
     static final byte[] HEX = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
-
-
 
     /** NDEF file for dynamic url**/
     short ndefDataFileSize;
@@ -67,13 +62,13 @@ public class SharedObject {
     static final short SIZE_ECPRIVKEY = 32;
     static final short SIZE_HEADER = 10;
     static final short SIZE_NONCE = 16; // 8-bytes hex-encoded
-    static final short SIZE_CARD_TYPE = 1; // 1-char
+    static final short SIZE_CARD_TYPE = 1; // 1-hex
     static final short SIZE_VERSION = 8; // 4-byte hex-encoded
     static final short SIZE_PUBKEY = 66; // 33-byte hex-encoded
-    static final short SIZE_NBSLOT = 1; // 1-char
-    static final short SIZE_SLOT = 76; // 38-byte hex-encoded
-    static final short SIZE_STATUS = 1; // 1-char
-    static final short SIZE_SLIP44 = 8; // 8-byte hex-encoded
+    static final short SIZE_NBSLOT = 1; // 1-hex
+    static final short SIZE_SLOT = 75; // [state(1hex) | slip44(8hex) | pkey(66hex) ]
+    static final short SIZE_STATE = 1; // 1-hex
+    static final short SIZE_SLIP44 = 8; // 4-byte hex-encoded
     static final short SIZE_SIGNATURE = 144; // 72-byte hex-encoded
 
     /** offsets **/
@@ -93,19 +88,6 @@ public class SharedObject {
 
     private ECPrivateKey authentikey_private;
     private byte[] authentikey_public;
-
-    /** The list of pubkeys for each slot **/
-    byte[] ecpubkeys;
-    byte[] state_array;
-    byte[] slip44_array;
-
-    /** slot status **/
-
-    /** slot slip44 **/
-
-    /** authentikey pubkey (33b) **/
-
-    /** authentikey signature **/
 
     /**
      * Constructor for the SharedObject class.
@@ -130,7 +112,7 @@ public class SharedObject {
         tmpBuffer = buffer;
 
         //this.nb_slots = nb_slots;
-        this.nb_slots = (byte)1;
+        this.nb_slots = (byte)1; // todo!
 
         // random object
         randomData = RandomData.getInstance(RandomData.ALG_SECURE_RANDOM);
@@ -163,9 +145,11 @@ public class SharedObject {
         // [nonce(8b) |  cardtype(1b) | version(4b) | authentikey(33b) | nb_slot(1b) ] +
         // [status(1b) | slip44(4b) | pubkey(33b) ] * nb_slot +
         // [subca_sig_size(1b) | subca_sig(70-72b) | padding(0-2b)] +
-        // [authentikey_sig_size(1b) | authentikey_sig(70-72b) | padding(0-2b)] +
+        // [authentikey_sig_size(1b) | authentikey_sig(70-72b) | padding(0-2b)]
+        // total size: (10 + 12) + (16 + 1 + 8 + 66 + 1) + (75)*nb_slot + 145 + 145
+        // for 1 slot: 22 + 92 + 75 + 290 = 479 (457 without the url & header)
         this.offset_nonce = (short)(SIZE_HEADER + BASE_URL.length);
-        this.offset_first_slot = (short)(this.offset_nonce + SIZE_CARD_TYPE + SIZE_VERSION + SIZE_PUBKEY + SIZE_NBSLOT);
+        this.offset_first_slot = (short)(this.offset_nonce + SIZE_NONCE + SIZE_CARD_TYPE + SIZE_VERSION + SIZE_PUBKEY + SIZE_NBSLOT);
         this.offset_subca_sig_size = (short)(offset_first_slot + this.nb_slots * SIZE_SLOT);
         this.offset_subca_sig = (short)(this.offset_subca_sig_size + 1);
         this.offset_authentikey_sig_size = (short)(offset_subca_sig+SIZE_SIGNATURE);
@@ -221,14 +205,16 @@ public class SharedObject {
         // save default slot info (to be populated)
         Util.arrayFillNonAtomic(ndefDataFile, this.offset_first_slot, (short)(this.nb_slots*SLOT_SIZE), (byte)'0');
 
-        // save dummy subca signature (to be be populated later)
-        ndefDataFile[this.offset_subca_sig_size] = HEX[(short)2];// 2 for max sig size (72-byte), so no padding needed
-        offset = this.offset_subca_sig;
-        for (short i=0; i<72; i++){
-            // For each byte, convert the two 4-bit nibbles to their hexadecimal value in ascii
-            ndefDataFile[offset++] = HEX[(byte)0];
-            ndefDataFile[offset++] = HEX[(byte)0];
-        }
+        // save dummy subca signature (to be be populated later): '0' + 70*'00' + 2*'00' = 145*'0'
+        Util.arrayFillNonAtomic(ndefDataFile, this.offset_subca_sig_size, (short)145, (byte)'0');
+
+//        ndefDataFile[this.offset_subca_sig_size] = HEX[(short)2];// 2 for max sig size (72-byte), so no padding needed
+//        offset = this.offset_subca_sig;
+//        for (short i=0; i<72; i++){
+//            // For each byte, convert the two 4-bit nibbles to their hexadecimal value in ascii
+//            ndefDataFile[offset++] = HEX[(byte)0];
+//            ndefDataFile[offset++] = HEX[(byte)0];
+//        }
 
     }
 
@@ -242,7 +228,7 @@ public class SharedObject {
         return instance;
     }
 
-    public short populateNdefDataFile() {
+    public void populateNdefDataFile() {
 
         // random nonce(8b)
         randomData.generateData(tmpBuffer, (short)0, (short)8);
@@ -275,7 +261,72 @@ public class SharedObject {
         sign_size -=(short)70;
         ndefDataFile[this.offset_authentikey_sig_size] = HEX[sign_size & 0x0F];// should be 0-2
 
-        return 0; // todo return void
+        return;
     }
+
+    void setSlotState(byte slot_index, byte slot_state) {
+        short offset = (short)(this.offset_first_slot + slot_index * SIZE_SLOT);
+        ndefDataFile[offset] = HEX[slot_state & 0x0F]; // should be 0, 1 or 2
+    }
+
+    void setSlotSlip44(byte slot_index, byte[] slip44_buffer, short slip44_offset, short slip44_size) {
+        short offset = (short)(this.offset_first_slot + SIZE_STATE + slot_index * SIZE_SLOT);
+        byte tmpByte;
+        for (short i=0; i<slip44_size; i++){
+            // For each byte, convert the two 4-bit nibbles to their hexadecimal value in ascii
+            tmpByte = slip44_buffer[(short)(slip44_offset+i)];
+            ndefDataFile[offset++] = HEX[(tmpByte >> 4) & 0x0F];
+            ndefDataFile[offset++] = HEX[tmpByte & 0x0F];
+        }
+    }
+
+    void setSlotPubkey(byte slot_index, byte[] pubkey_buffer, short pubkey_offset, short pubkey_size) {
+        short offset = (short)(this.offset_first_slot + SIZE_STATE + SIZE_SLIP44 + slot_index * SIZE_SLOT);
+        byte tmpByte;
+        // note: the pubkey is provided in uncompressed format, so we must compress it
+        // compute compression byte
+        if (pubkey_buffer[pubkey_offset]%2 == 0){
+            tmpByte = (byte)0x02;
+        } else {
+            tmpByte = (byte)0x03;
+        }
+        ndefDataFile[offset++] = HEX[(tmpByte >> 4) & 0x0F];
+        ndefDataFile[offset++] = HEX[tmpByte & 0x0F];
+        // save coordx
+        for (short i=1; i<=32; i++){
+            // For each byte, convert the two 4-bit nibbles to their hexadecimal value in ascii
+            tmpByte = pubkey_buffer[(short)(pubkey_offset+i)];
+            ndefDataFile[offset++] = HEX[(tmpByte >> 4) & 0x0F];
+            ndefDataFile[offset++] = HEX[tmpByte & 0x0F];
+        }
+    }
+
+    void resetSlot(byte slot_index){
+        short offset = (short)(this.offset_first_slot + slot_index * SIZE_SLOT);
+        Util.arrayFillNonAtomic(ndefDataFile, offset, SLOT_SIZE, (byte)'0');
+    }
+
+    void setSubcaSig(byte[] sig_buffer, short sig_offset, short sig_size) {
+        short offset = (short)(this.offset_subca_sig);
+        byte tmpByte;
+        // save signature, hex-encoded (todo: base64?)
+        for (short i=0; i<sig_size; i++){
+            // For each byte, convert the two 4-bit nibbles to their hexadecimal value in ascii
+            tmpByte = sig_buffer[(short)(sig_offset + i)];
+            ndefDataFile[offset++] = HEX[(tmpByte >> 4) & 0x0F];
+            ndefDataFile[offset++] = HEX[tmpByte & 0x0F];
+        }
+        // '00' padding to reach 72-byte sig
+        for (short i=0; i<(short)(72-sig_size); i++){
+            ndefDataFile[offset++] = (byte)'0';
+            ndefDataFile[offset++] = (byte)'0';
+        }
+
+        // save sig_size as the difference between the actual sig size (70-72 bytes) and the minimum size (70 bytes)
+        short delta = (short)(sig_size-70);
+        ndefDataFile[this.offset_subca_sig_size] = HEX[delta & 0x0F];// should be 0-2
+    }
+
+
 
 }
