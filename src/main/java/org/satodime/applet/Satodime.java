@@ -203,7 +203,7 @@ public class Satodime extends javacard.framework.Applet {
     /** Incorrect P2 parameter */
     private final static short SW_INCORRECT_P2 = (short) 0x9C11;
     /** Invalid input parameter to command */
-    private final static short SW_INVALID_PARAMETER = (short) 0x9C0F;
+    final static short SW_INVALID_PARAMETER = (short) 0x9C0F;
     
     /** Eckeys initialized */
     private final static short SW_ECKEYS_INITIALIZED_KEY = (short) 0x9C1A;
@@ -320,7 +320,7 @@ public class Satodime extends javacard.framework.Applet {
      *********************************************/
     
     // Key objects (allocated on demand)
-    private static final short SIZE_ECPRIVKEY= (short)32;
+    static final short SIZE_ECPRIVKEY= (short)32;
     static final short SIZE_ECPUBKEY= (short)65;
     private static final short SIZE_ECCOORDX= (short)32;
     private static final short SIZE_ENTROPY= (short)32;
@@ -419,7 +419,7 @@ public class Satodime extends javacard.framework.Applet {
         if (bLength>=1){
             MAX_NUM_KEYS= bArray[bOffset];
         }else{
-            MAX_NUM_KEYS=1; // default value
+            MAX_NUM_KEYS=2; // default value
         }
 
         // Temporary working arrays
