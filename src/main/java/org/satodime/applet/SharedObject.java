@@ -21,11 +21,7 @@
 package org.satodime.applet;
 
 import javacard.framework.Util;
-import javacard.framework.ISOException;
-import javacard.framework.ISO7816;
-import javacard.security.CryptoException;
 import javacard.security.ECPrivateKey;
-import javacard.security.KeyAgreement;
 import javacard.security.KeyBuilder;
 import javacard.security.Signature;
 import javacard.security.RandomData;
@@ -82,8 +78,6 @@ public class SharedObject {
     private short offset_nonce;
     private short offset_authentikey;
     private short offset_first_slot;
-//    private short offset_subca_sig_size;
-//    private short offset_subca_sig;
     private short offset_authentikey_sig_size;
     private short offset_authentikey_sig;
 
@@ -91,7 +85,6 @@ public class SharedObject {
 
     /** for nonce randomness **/
     private RandomData randomData;
-//    private KeyAgreement keyAgreement;
     private Signature sigECDSA;
 
     /**
@@ -100,7 +93,6 @@ public class SharedObject {
      * By default, we use a dummy privkey, that should be updated during personalization.
      */
     private ECPrivateKey ndef_authentikey_private;
-    //private byte[] ndef_authentikey_public;
 
     /**
      * Constructor for the SharedObject class.
@@ -124,17 +116,12 @@ public class SharedObject {
 
         tmpBuffer = buffer;
 
-        //this.nb_slots = nb_slots;
-        this.nb_slots = (byte)2; // todo!
+        this.nb_slots = nb_slots;
+        //this.nb_slots = (byte)2; // todo!
 
-        // random object
+        // cryptographic objects
         randomData = RandomData.getInstance(RandomData.ALG_SECURE_RANDOM);
         sigECDSA= Signature.getInstance(Satodime.ALG_ECDSA_SHA_256, false);
-//        try {
-//            keyAgreement = KeyAgreement.getInstance(Satodime.ALG_EC_SVDP_DH_PLAIN_XY, false);
-//        } catch (CryptoException e) {
-//            ISOException.throwIt(Satodime.SW_UNSUPPORTED_FEATURE);// unsupported feature => use a more recent card!
-//        }
 
         // ndef_authentikey
         ndef_authentikey_private= (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, Satodime.LENGTH_EC_FP_256, false);
@@ -142,32 +129,17 @@ public class SharedObject {
         //randomData.generateData(tmpBuffer, (short)0, Satodime.SIZE_ECPRIVKEY); // random, unique value may leak privacy
         Util.arrayFillNonAtomic(tmpBuffer, (short)0, Satodime.SIZE_ECPRIVKEY, (byte)1); // use dummy privkey by default, should be replace during personalization.
         ndef_authentikey_private.setS(tmpBuffer, (short)0, Satodime.SIZE_ECPRIVKEY);
-//        // recover pubkey
-//        keyAgreement.init(ndef_authentikey_private);
-//        keyAgreement.generateSecret(Secp256k1.SECP256K1, Secp256k1.OFFSET_SECP256K1_G, (short) 65, tmpBuffer, (short)0);
-//        // compress pubkey
-//        ndef_authentikey_public = new byte[33];
-//        if (tmpBuffer[64]%2 == 0){
-//            ndef_authentikey_public[0] = (byte)0x02;
-//        } else {
-//            ndef_authentikey_public[0] = (byte)0x03;
-//        }
-//        Util.arrayCopy(tmpBuffer, (short)1, ndef_authentikey_public, (short)1, (short)32);
 
         // offsets
         // [header(10b) | base_url() ] +
         // [nonce(8b) |  cardtype(1b) | version(4b) | authentikey(33b) | nb_slot(1b) ] +
         // [status(1b) | slip44(4b) | pubkey(33b) ] * nb_slot +
-        //// [subca_sig_size(1b) | subca_sig(70-72b) | padding(0-2b)] +
         // [authentikey_sig_size(1b) | authentikey_sig(70-72b) | padding(0-2b)]
         // total size: (10 + 12) + (16 + 1 + 8 + 66 + 1) + (75)*nb_slot + 145
         // for 1 slot: 22 + 92 + 75 + 145 = 334 (312 without the url & header)
         this.offset_nonce = (short)(SIZE_HEADER + BASE_URL.length);
         this.offset_authentikey = (short)(this.offset_nonce + SIZE_NONCE + SIZE_CARD_TYPE + SIZE_VERSION);
         this.offset_first_slot = (short)(offset_authentikey + SIZE_PUBKEY + SIZE_NBSLOT);
-//        this.offset_subca_sig_size = (short)(offset_first_slot + this.nb_slots * SIZE_SLOT);
-//        this.offset_subca_sig = (short)(this.offset_subca_sig_size + 1);
-//        this.offset_authentikey_sig_size = (short)(offset_subca_sig+SIZE_SIGNATURE);
         this.offset_authentikey_sig_size = (short)(offset_first_slot + this.nb_slots * SIZE_SLOT);
         this.offset_authentikey_sig = (short)(offset_authentikey_sig_size+1);
 
@@ -198,6 +170,7 @@ public class SharedObject {
         offset += SIZE_NONCE;
         // cardtype
         ndefDataFile[offset++] = (byte) '2';
+
         // version
         ndefDataFile[offset++] = HEX[(short)((Satodime.PROTOCOL_MAJOR_VERSION>>4) & 0x0F)];
         ndefDataFile[offset++] = HEX[Satodime.PROTOCOL_MAJOR_VERSION & 0x0F];
@@ -207,24 +180,16 @@ public class SharedObject {
         ndefDataFile[offset++] = HEX[Satodime.APPLET_MAJOR_VERSION & 0x0F];
         ndefDataFile[offset++] = HEX[(short)((Satodime.APPLET_MINOR_VERSION>>4) & 0x0F)];
         ndefDataFile[offset++] = HEX[Satodime.APPLET_MINOR_VERSION & 0x0F];
+
         // NDEF authentikey (dummy value until personalization)
         Util.arrayFillNonAtomic(ndefDataFile, offset, SIZE_PUBKEY, (byte)'0');
         offset += SIZE_PUBKEY;
-//        byte tmpByte;
-//        for (short i=0; i<ndef_authentikey_public.length; i++){
-//            // For each byte, convert the two 4-bit nibbles to their hexadecimal value in ascii
-//            tmpByte = ndef_authentikey_public[i];
-//            ndefDataFile[offset++] = HEX[(tmpByte >> 4) & 0x0F];
-//            ndefDataFile[offset++] = HEX[tmpByte & 0x0F];
-//        }
+
         // nb_slots
         ndefDataFile[offset++] = HEX[this.nb_slots & 0x0F];// nb_slots should be <= 0x0F
 
         // save default slot info (to be populated)
         Util.arrayFillNonAtomic(ndefDataFile, this.offset_first_slot, (short)(this.nb_slots*SIZE_SLOT), (byte)'0');
-
-//        // save dummy subca signature (to be be populated later): '0' + 70*'00' + 2*'00' = 145*'0'
-//        Util.arrayFillNonAtomic(ndefDataFile, this.offset_subca_sig_size, (short)145, (byte)'0');
     }
 
     /**
@@ -315,27 +280,6 @@ public class SharedObject {
         Util.arrayFillNonAtomic(ndefDataFile, offset, SIZE_SLOT, (byte)'0');
     }
 
-//    void setSubcaSig(byte[] sig_buffer, short sig_offset, short sig_size) {
-//        short offset = (short)(this.offset_subca_sig);
-//        byte tmpByte;
-//        // save signature, hex-encoded (todo: base64?)
-//        for (short i=0; i<sig_size; i++){
-//            // For each byte, convert the two 4-bit nibbles to their hexadecimal value in ascii
-//            tmpByte = sig_buffer[(short)(sig_offset + i)];
-//            ndefDataFile[offset++] = HEX[(tmpByte >> 4) & 0x0F];
-//            ndefDataFile[offset++] = HEX[tmpByte & 0x0F];
-//        }
-//        // '00' padding to reach 72-byte sig
-//        for (short i=0; i<(short)(72-sig_size); i++){
-//            ndefDataFile[offset++] = (byte)'0';
-//            ndefDataFile[offset++] = (byte)'0';
-//        }
-//
-//        // save sig_size as the difference between the actual sig size (70-72 bytes) and the minimum size (70 bytes)
-//        short delta = (short)(sig_size-70);
-//        ndefDataFile[this.offset_subca_sig_size] = HEX[delta & 0x0F];// should be 0-2
-//    }
-
     void updateNdefAuthentikey(byte[] privkey_buffer, short privkey_offset, byte[] pubkey_buffer, short pubkey_offset){
         // update privkey
         ndef_authentikey_private.setS(privkey_buffer, privkey_offset, Satodime.SIZE_ECPRIVKEY);
@@ -349,6 +293,7 @@ public class SharedObject {
             ndefDataFile[offset++] = HEX[tmpByte & 0x0F];
         }
 
+//        // pubkey recovery will be donne in the calling method in Satodime
 //        keyAgreement.init(ndef_authentikey_private);
 //        keyAgreement.generateSecret(Secp256k1.SECP256K1, Secp256k1.OFFSET_SECP256K1_G, (short) 65, tmpBuffer, (short)0);
 //        // compress pubkey
