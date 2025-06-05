@@ -292,17 +292,6 @@ public class SharedObject {
             ndefDataFile[offset++] = HEX[(tmpByte >> 4) & 0x0F];
             ndefDataFile[offset++] = HEX[tmpByte & 0x0F];
         }
-
-//        // pubkey recovery will be donne in the calling method in Satodime
-//        keyAgreement.init(ndef_authentikey_private);
-//        keyAgreement.generateSecret(Secp256k1.SECP256K1, Secp256k1.OFFSET_SECP256K1_G, (short) 65, tmpBuffer, (short)0);
-//        // compress pubkey
-//        if (tmpBuffer[64]%2 == 0){
-//            ndef_authentikey_public[0] = (byte)0x02;
-//        } else {
-//            ndef_authentikey_public[0] = (byte)0x03;
-//        }
-//        Util.arrayCopy(tmpBuffer, (short)1, ndef_authentikey_public, (short)1, (short)32);
     }
 
 }

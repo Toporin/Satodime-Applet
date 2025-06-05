@@ -166,6 +166,7 @@ public class Satodime extends javacard.framework.Applet {
     private final static byte INS_EXPORT_PKI_CERTIFICATE = (byte) 0x93;
     private final static byte INS_SIGN_PKI_CSR = (byte) 0x94;
     private final static byte INS_EXPORT_PKI_PUBKEY = (byte) 0x98;
+    private final static byte INS_IMPORT_PKI_NDEF_AUTHENTIKEY = (byte) 0x9B;
     private final static byte INS_LOCK_PKI = (byte) 0x99;
     private final static byte INS_CHALLENGE_RESPONSE_PKI= (byte) 0x9A;
     
@@ -708,6 +709,9 @@ public class Satodime extends javacard.framework.Applet {
             break;
         case INS_EXPORT_PKI_CERTIFICATE:
             sizeout= export_PKI_certificate(apdu, buffer);
+            break;
+        case INS_IMPORT_PKI_NDEF_AUTHENTIKEY:
+            sizeout= import_PKI_ndef_authentikey(apdu, buffer);
             break;
         case INS_LOCK_PKI:
             sizeout= lock_PKI(apdu, buffer);
@@ -1994,10 +1998,58 @@ public class Satodime extends javacard.framework.Applet {
                 return (short)0; 
         }
     }
-    
+
+    /**
+     * This function import the ECDSA secp256k1 NDEF authentikey private key during personalization.
+     * This private key is used to authenticate NDEF records.
+     * For privacy reason, this key is shared by multiple devices.
+     *
+     *
+     *  ins: 0xB
+     *  p1: rfu
+     *  p2: rfu
+     *  data: [ privkey (32b) ]
+     *  return: [none]
+     */
+    private short import_PKI_ndef_authentikey(APDU apdu, byte[] buffer) {
+
+        if (personalizationDone)
+            ISOException.throwIt(SW_PKI_ALREADY_LOCKED);
+
+        short bytesLeft = Util.makeShort((byte) 0x00, buffer[ISO7816.OFFSET_LC]);
+        if (bytesLeft < (short)32)
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+
+        // copy privkey to tmpBuffer
+        short offset = (short)0;
+        Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, tmpBuffer, offset, SIZE_ECPRIVKEY);
+        offset += SIZE_ECPRIVKEY;
+
+        // set ephemeral_privkey
+        if (ephemeral_privkey_transient) {
+            Secp256k1.setCommonCurveParameters(ephemeral_privkey);
+        }
+        ephemeral_privkey.setS(buffer, ISO7816.OFFSET_CDATA, SIZE_ECPRIVKEY);
+
+        // recover (uncompressed) pubkey
+        keyAgreement.init(ephemeral_privkey);
+        keyAgreement.generateSecret(Secp256k1.SECP256K1, Secp256k1.OFFSET_SECP256K1_G, (short) 65, tmpBuffer, offset);
+        // compress pubkey
+        if (tmpBuffer[(short)(offset+64)]%2 == 0){
+            tmpBuffer[offset] = (byte)0x02;
+        } else {
+            tmpBuffer[offset] = (byte)0x03;
+        }
+
+        // update sharedObject with the keypair
+        sharedObject.updateNdefAuthentikey(tmpBuffer, (short)0, tmpBuffer, offset);
+
+        return (short)0;
+    }
+
     /**
      * This function locks the PKI config.
-     * Once it is locked, it is not possible to modify private key, certificate or allowed_card_AID.
+     * Once it is locked, it is not possible to modify private key, certificate.
      *  
      *  ins: 
      *  p1: 0x00 
