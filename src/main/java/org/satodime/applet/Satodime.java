@@ -577,7 +577,8 @@ public class Satodime extends javacard.framework.Applet {
 
         // check SELECT APDU command
         if ((buffer[ISO7816.OFFSET_CLA] == 0) && (buffer[ISO7816.OFFSET_INS] == (byte) 0xA4))
-            return;
+            ISOException.throwIt(ISO7816.SW_FILE_NOT_FOUND); // spurious select (see https://github.com/Toporin/SatochipApplet/issues/11)
+
         // verify the rest of commands have the
         // correct CLA byte, which specifies the
         // command structure
