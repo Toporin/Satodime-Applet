@@ -337,7 +337,10 @@ public class Satodime extends javacard.framework.Applet {
     private byte[] unlock_counter;
     private static final byte SIZE_UNLOCK_SECRET=20;
     private static final byte SIZE_UNLOCK_COUNTER=4;
-    
+
+    // Card used as Certificate of Authenticity (CoA)?
+    private boolean is_coa = false;
+
     // METADATA for each keypair
     private byte[] state_array;
     private byte[] type_array; // key type
@@ -407,7 +410,7 @@ public class Satodime extends javacard.framework.Applet {
     
     public static void install(byte[] bArray, short bOffset, byte bLength) {
         // extract install parameters if any
-        // install parameters: [ nb_slots(1b, optional) | cvc_size(1b, optional) | cvc ]
+        // install parameters: [ nb_slots(1b, optional) | is_coa(1b, optional) | cvc_size(1b, optional) | cvc ]
         byte aidLength = bArray[bOffset];
         short controlLength = (short)(bArray[(short)(bOffset+1+aidLength)]&(short)0x00FF);
         short dataLength = (short)(bArray[(short)(bOffset+1+aidLength+1+controlLength)]&(short)0x00FF);
@@ -415,12 +418,19 @@ public class Satodime extends javacard.framework.Applet {
     }
     
     private Satodime(byte[] bArray, short bOffset, short bLength) {
-        
+
         // recover MAX_NUM_KEYS from install params
         if (bLength>=1){
             MAX_NUM_KEYS= bArray[bOffset];
         }else{
             MAX_NUM_KEYS=2; // default value
+        }
+
+        // check if Certificate of Authenticity (CoA)?
+        if (bLength>=2){
+            if (bArray[(short)(bOffset+1)] != 0x00){
+                is_coa = true;
+            }
         }
 
         // Temporary working arrays
@@ -517,12 +527,12 @@ public class Satodime extends javacard.framework.Applet {
         randomData.generateData(unlock_secret, (short)0, SIZE_UNLOCK_SECRET);
 
         // recover CVC from install params?
-        if (bLength>=2){
+        if (bLength>=3){
             // CVC = [cvc_size(1b) | cvc ]
-            byte cvc_size = bArray[(short)(bOffset+1)];
-            if ((cvc_size>0) && (cvc_size<=SIZE_UNLOCK_SECRET) && (bLength >= (2+cvc_size))){
+            byte cvc_size = bArray[(short)(bOffset+2)];
+            if ((cvc_size>0) && (cvc_size<=SIZE_UNLOCK_SECRET) && (bLength >= (3+cvc_size))){
                 Util.arrayFillNonAtomic(unlock_secret, (short)0, SIZE_UNLOCK_SECRET, (byte)0x00);
-                Util.arrayCopy(bArray, (short)(bOffset+2), unlock_secret, (short)0, cvc_size);
+                Util.arrayCopy(bArray, (short)(bOffset+3), unlock_secret, (short)0, cvc_size);
                 fixed_unlock_secret = true;
             }
         }
@@ -535,7 +545,7 @@ public class Satodime extends javacard.framework.Applet {
 
         // create sharedObject (shared with NDEF applet)
         sharedObject = SharedObject.getInstance();
-        sharedObject.init(tmpBuffer, MAX_NUM_KEYS);
+        sharedObject.init(tmpBuffer, MAX_NUM_KEYS, is_coa);
 
     } // end of constructor
 
@@ -1012,7 +1022,7 @@ public class Satodime extends javacard.framework.Applet {
      *  p1: 0x00
      *  p2: 0x00
      *  data: (none)
-     *  return: [unlock_counter | nb_keys_slots(1b) | key_status(nb_key_slots bytes) |  fixed_unlock_secret(1b)]
+     *  return: [unlock_counter | nb_keys_slots(1b) | key_status(nb_key_slots bytes) |  fixed_unlock_secret(1b) | is_coa(1b)]
      */
     private short getSatodimeStatus(APDU apdu, byte[] buffer){
        
@@ -1028,6 +1038,12 @@ public class Satodime extends javacard.framework.Applet {
         }
         // fixed_unlock_secret
         if (fixed_unlock_secret){
+            buffer[buffer_offset++] = 0x01;
+        } else {
+            buffer[buffer_offset++] = 0x00;
+        }
+        // fixed_unlock_secret
+        if (is_coa){
             buffer[buffer_offset++] = 0x01;
         } else {
             buffer[buffer_offset++] = 0x00;

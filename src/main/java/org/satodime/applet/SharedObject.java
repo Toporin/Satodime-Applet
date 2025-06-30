@@ -50,7 +50,8 @@ public class SharedObject {
     private static byte[] tmpBuffer;
 
     /** base URL for dynamic url **/
-    static final byte[] BASE_URL = {'e','x','a','m','p','l','e','.','c','o','m', '/'};
+    //static final byte[] BASE_URL = {'e','x','a','m','p','l','e','.','c','o','m', '/'};
+    static final byte[] BASE_URL = {'s','a','t','o','d','i','m','e','-','3','c','2','d','a','2','1','d','8','b','9','a','.','h','e','r','o','k','u','a','p','p','.','c','o','m','/','v','/'}; //satodime-3c2da21d8b9a.herokuapp.com/v/
 
     /** for bytes to hex conversion **/
     static final byte[] HEX = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
@@ -112,7 +113,7 @@ public class SharedObject {
      *          Max number of slots
      *
      */
-    void init(byte[] buffer, byte nb_slots) {
+    void init(byte[] buffer, byte nb_slots, boolean is_coa) {
 
         tmpBuffer = buffer;
 
@@ -169,7 +170,11 @@ public class SharedObject {
         // skip nonce
         offset += SIZE_NONCE;
         // cardtype
-        ndefDataFile[offset++] = (byte) '2';
+        if (is_coa){
+            ndefDataFile[offset++] = (byte) 'a';
+        } else {
+            ndefDataFile[offset++] = (byte) 'd';
+        }
 
         // version
         ndefDataFile[offset++] = HEX[(short)((Satodime.PROTOCOL_MAJOR_VERSION>>4) & 0x0F)];
