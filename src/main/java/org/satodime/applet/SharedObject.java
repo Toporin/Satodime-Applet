@@ -172,9 +172,9 @@ public class SharedObject {
         offset += SIZE_NONCE;
         // cardtype
         if (is_coa){
-            ndefDataFile[offset++] = (byte) 'a';
+            ndefDataFile[offset++] = (byte) 'A';
         } else {
-            ndefDataFile[offset++] = (byte) 'd';
+            ndefDataFile[offset++] = (byte) 'D';
         }
 
         // version
