@@ -47,6 +47,13 @@ add command to check unlock secret
 * Add NDEF support via the NDEFApplet and a data array shared with the Satodime applet.
   * NDEF data can be changed through the Satodime applet, after PIN validation
 
+* Refactor cardNdef() command APDU
+  * Check ownership for changing NDEF data
+  * Support 3 NDEF policies: 0: No NDEF, 1: static NDEF, 2: dynamic NDEF
+  * Change response format when getting current NDEF data.
+  * Note that APDU format is not compatible with format used in seedkeeper applet
+
+
 * Switch to gradle for building applet with NDEF support
   * based on https://github.com/fidesmo/gradle-javacard
 

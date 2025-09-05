@@ -77,7 +77,7 @@ public class Satodime extends javacard.framework.Applet {
      * 
      *   0.1-0.1: initial version
      *   0.1-0.2: refactor card-setup: allows to read info when setup is not done (changes are not allowed)
-     *   FF.FF-FF-FF: Refactoring, CVC & NDEF support (WIP)
+     *   WIP 0.2-0.1: Refactoring, CVC & NDEF support
      */ 
     final static byte PROTOCOL_MAJOR_VERSION = (byte) 0xff;
     final static byte PROTOCOL_MINOR_VERSION = (byte) 0xff;
@@ -914,22 +914,67 @@ public class Satodime extends javacard.framework.Applet {
     }
 
     /**
-     * This function allows to define or recover a the NDEF data bytes.
-     * The first byte of the ndef byte array is the size of the remaining bytes.
+     * This function allows to set or get the NDEF policy, and define or recover the corresponding NDEF data bytes for the current policy.
+     * There are 3 possibble NDEF policies: 0x00 for no NDEF, 0x01 for static (fixed) NDEF & 0x02 for dynamic NDEF (url with up-to-date vault info).
+     *
+     * When setting 'no NDEF' policy, the ndef_size should be 0.
+     * When setting 'dynamic NDEF' policy, the ndef_size should be 0 as it is not currently possible to change dynamic NDEF data.
+     * When setting 'static NDEF' policy, if ndef_size is 0, NDEF data is not modified, only NDEF policy is changed.
      *
      *  ins: 0x3F
-     *  p1: ndef_policy
+     *  p1: ndef_policy if p2==0x00
      *  p2: operation (0x00 to set NDEF, 0x01 to get NDEF)
-     *  data: [ndef_size (1b) | ndef] if p2==0x00 else (none)
-     *  return: [ndef_size(1b) | ndef] if p2==0x01 else (none)
+     *  data: [ndef_size (1b) | ndef | unlock_counter(4b) | unlock_code(20b) ] if p2==0x00 else (none)
+     *  return: [ndef_policy(1b) | ndef_size(2b) | ndef] if p2==0x01 else (none)
+     *  exceptions: 9C0F SW_INVALID_PARAMETER, 9C50 SW_INCORRECT_UNLOCK_COUNTER, 9C51 SW_INCORRECT_UNLOCK_CODE, 9C54 SW_UNKNOWN_PROTOCOL_MEDIA, 9C10 SW_INCORRECT_P1, 9C11 SW_INCORRECT_P2
      */
     private short cardNdef(APDU apdu, byte[] buffer){
 
+        short ndef_size = 0;
         byte op = buffer[ISO7816.OFFSET_P2];
         switch (op) {
             case 0x00: // set ndef from buffer
 
-                // todo: check ownership
+                short bytes_left = Util.makeShort((byte) 0x00, buffer[ISO7816.OFFSET_LC]);
+                short buffer_offset = ISO7816.OFFSET_CDATA;
+
+                // check parameters size (for dynamic NDEF, ndef_size should be 0)
+                if (bytes_left<1)
+                    ISOException.throwIt(SW_INVALID_PARAMETER);
+                ndef_size = Util.makeShort((byte) 0x00, buffer[buffer_offset]);
+                if (bytes_left<(short)(1+ndef_size))
+                    ISOException.throwIt(SW_INVALID_PARAMETER);
+                buffer_offset++;
+                buffer_offset += ndef_size;
+
+                // check unlock_code
+                // check which communication protocol is used
+                byte protocol = (byte) (APDU.getProtocol() & APDU.PROTOCOL_MEDIA_MASK);
+                if (protocol == APDU.PROTOCOL_MEDIA_USB || protocol == APDU.PROTOCOL_MEDIA_DEFAULT) {
+                    // nothing to check...
+                    Biginteger.add1_carry(unlock_counter, (short)0, SIZE_UNLOCK_COUNTER);
+                }
+                // only check for contactless operation
+                else if (protocol == APDU.PROTOCOL_MEDIA_CONTACTLESS_TYPE_A || protocol == APDU.PROTOCOL_MEDIA_CONTACTLESS_TYPE_B) {
+                    // check parameters size
+                    if (bytes_left<(short)(25+ndef_size))
+                        ISOException.throwIt(SW_INVALID_PARAMETER);
+                    // check counter
+                    if (Util.arrayCompare(unlock_counter, (short)0, buffer, buffer_offset, SIZE_UNLOCK_COUNTER) != 0){
+                        ISOException.throwIt(SW_INCORRECT_UNLOCK_COUNTER);
+                    }
+                    buffer_offset+=SIZE_UNLOCK_COUNTER;
+                    // compute & check hmac(counter_secret, apduheader | ndef_size | ndef_bytes | counter)
+                    HmacSha160.computeHmacSha160(unlock_secret, (short)0, SIZE_UNLOCK_SECRET, buffer, (short)0, buffer_offset, recvBuffer, (short)0);
+                    if (Util.arrayCompare(buffer, buffer_offset, recvBuffer, (short)0, SIZE_UNLOCK_CODE) != 0){
+                        ISOException.throwIt(SW_INCORRECT_UNLOCK_CODE);
+                    }
+                    // increase counter
+                    Biginteger.add1_carry(unlock_counter, (short)0, SIZE_UNLOCK_COUNTER);
+                }
+                else {
+                    ISOException.throwIt(SW_UNKNOWN_PROTOCOL_MEDIA);
+                }
 
                 // set ndef_policy
                 byte p1 = buffer[ISO7816.OFFSET_P1];
@@ -937,41 +982,51 @@ public class Satodime extends javacard.framework.Applet {
                     case 0x00: // disable NDEF
                         SharedMemory.ndef_policy = 0x00;
                         return (short)0;
+
                     case 0x01: // static NDEF
                         SharedMemory.ndef_policy = 0x01;
-                        break;
+                        // check ndef_size
+                        if (ndef_size==0)
+                            // if new NDEF is empty, we do not mofify it
+                            return (short)0;
+                        if (ndef_size>SharedMemory.ndefDataFile.length)
+                            ISOException.throwIt(SW_INVALID_PARAMETER);
+                        // set NDEF data
+                        SharedMemory.ndefDataFileSize = 0; // for atomicity
+                        buffer_offset = ISO7816.OFFSET_CDATA+1; // skip ndef_size
+                        Util.arrayCopyNonAtomic(buffer, buffer_offset, SharedMemory.ndefDataFile, (short)0, ndef_size);
+                        SharedMemory.ndefDataFileSize = ndef_size;
+                        return (short)0;
+
                     case 0x02: // dynamic URL with slot info
                         SharedMemory.ndef_policy = 0x02;
                         return (short)0;
                     default:
-                        ISOException.throwIt(SW_INCORRECT_P2);
+                        ISOException.throwIt(SW_INCORRECT_P1);
                 }
 
-                //set ndef value
-                short bytes_left = Util.makeShort((byte) 0x00, buffer[ISO7816.OFFSET_LC]);
-                short buffer_offset = ISO7816.OFFSET_CDATA;
-                if (bytes_left>0){
-                    short ndef_size = Util.makeShort((byte) 0x00, buffer[buffer_offset]);
-                    if (ndef_size != (short)(bytes_left - 1)) {
-                        ISOException.throwIt(SW_INVALID_PARAMETER);
-                    }
-                    if (bytes_left>SharedMemory.ndefDataFile.length)
-                        ISOException.throwIt(SW_INVALID_PARAMETER);
-                    Util.arrayCopyNonAtomic(buffer, buffer_offset, SharedMemory.ndefDataFile, (short)0, bytes_left);
-                }
-
-                // if bytes_left == 0, just modify ndef_policy, do not change ndef value...
-//                else if (bytes_left==0){//reset ndef
-//                    SharedMemory.ndefDataFile[0] = (byte)0x00;
-                //}
                 return (short)0;
 
             case 0x01: // get ndef
-                // todo: return ndef policy
-                short ndef_size = Util.makeShort((byte) 0x00, SharedMemory.ndefDataFile[0]);
-                ndef_size++;
-                Util.arrayCopyNonAtomic(SharedMemory.ndefDataFile, (short)0, buffer, (short)0, ndef_size);
-                return ndef_size;
+
+                buffer[0] = SharedMemory.ndef_policy;
+                switch (SharedMemory.ndef_policy){
+                    case 0x00: // NDEF disabled
+                        Util.setShort(buffer, (short)1, (short)0);
+                        return (short)3;
+                    case 0x01: // static NDEF
+                        ndef_size = SharedMemory.ndefDataFileSize;
+                        Util.setShort(buffer, (short)1, ndef_size);
+                        Util.arrayCopyNonAtomic(SharedMemory.ndefDataFile, (short)3, buffer, (short)1, ndef_size);
+                        return (short)(3+ndef_size);
+                    case 0x02: // dynamic URL with slot info
+                        Util.setShort(buffer, (short)1, sharedObject.ndefDataFileSize);
+                        // currently, only return size as full NDEF likely does not fit in one apdu
+                        return (short)(3);
+                    default:
+                        ISOException.throwIt(SW_INCORRECT_P1);
+                }
+                return (short)0;
 
             default:
                 ISOException.throwIt(SW_INCORRECT_P2);
