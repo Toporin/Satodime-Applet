@@ -980,26 +980,26 @@ public class Satodime extends javacard.framework.Applet {
                 byte p1 = buffer[ISO7816.OFFSET_P1];
                 switch (p1){
                     case 0x00: // disable NDEF
-                        SharedMemory.ndef_policy = 0x00;
+                        sharedObject.ndef_policy = 0x00;
                         return (short)0;
 
                     case 0x01: // static NDEF
-                        SharedMemory.ndef_policy = 0x01;
+                        sharedObject.ndef_policy = 0x01;
                         // check ndef_size
                         if (ndef_size==0)
                             // if new NDEF is empty, we do not mofify it
                             return (short)0;
-                        if (ndef_size>SharedMemory.ndefDataFile.length)
+                        if (ndef_size>SharedObject.ndefStaticDataFile.length)
                             ISOException.throwIt(SW_INVALID_PARAMETER);
                         // set NDEF data
-                        SharedMemory.ndefDataFileSize = 0; // for atomicity
+                        SharedObject.ndefStaticDataFileSize = 0; // for atomicity
                         buffer_offset = ISO7816.OFFSET_CDATA+1; // skip ndef_size
-                        Util.arrayCopyNonAtomic(buffer, buffer_offset, SharedMemory.ndefDataFile, (short)0, ndef_size);
-                        SharedMemory.ndefDataFileSize = ndef_size;
+                        Util.arrayCopyNonAtomic(buffer, buffer_offset, SharedObject.ndefStaticDataFile, (short)0, ndef_size);
+                        SharedObject.ndefStaticDataFileSize = ndef_size;
                         return (short)0;
 
                     case 0x02: // dynamic URL with slot info
-                        SharedMemory.ndef_policy = 0x02;
+                        sharedObject.ndef_policy = 0x02;
                         return (short)0;
                     default:
                         ISOException.throwIt(SW_INCORRECT_P1);
@@ -1009,18 +1009,18 @@ public class Satodime extends javacard.framework.Applet {
 
             case 0x01: // get ndef
 
-                buffer[0] = SharedMemory.ndef_policy;
-                switch (SharedMemory.ndef_policy){
+                buffer[0] = sharedObject.ndef_policy;
+                switch (sharedObject.ndef_policy){
                     case 0x00: // NDEF disabled
                         Util.setShort(buffer, (short)1, (short)0);
                         return (short)3;
                     case 0x01: // static NDEF
-                        ndef_size = SharedMemory.ndefDataFileSize;
+                        ndef_size = SharedObject.ndefStaticDataFileSize;
                         Util.setShort(buffer, (short)1, ndef_size);
-                        Util.arrayCopyNonAtomic(SharedMemory.ndefDataFile, (short)3, buffer, (short)1, ndef_size);
+                        Util.arrayCopyNonAtomic(SharedObject.ndefStaticDataFile, (short)3, buffer, (short)1, ndef_size);
                         return (short)(3+ndef_size);
                     case 0x02: // dynamic URL with slot info
-                        Util.setShort(buffer, (short)1, sharedObject.ndefDataFileSize);
+                        Util.setShort(buffer, (short)1, sharedObject.ndefDynamicDataFileSize);
                         // currently, only return size as full NDEF likely does not fit in one apdu
                         return (short)(3);
                     default:

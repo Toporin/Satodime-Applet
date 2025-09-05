@@ -61,15 +61,15 @@ public class NDEFApplet extends Applet {
         short c9Off = (short)(bOffset + bArray[bOffset] + 1); // Skip AID
         c9Off += (short)(bArray[c9Off] + 1); // Skip Privileges and parameter length
 
+        sharedObject = SharedObject.getInstance();
+
         // parameter is the NDEF data: [ NDEF_data_size(1b) | NDEF_data ]
         short dataLen = Util.makeShort((byte) 0x00, bArray[c9Off]);
         if ((dataLen > 2) && ((short)(dataLen - 2) == Util.makeShort(bArray[(short)(c9Off + 1)], bArray[(short)(c9Off + 2)]))) {
-            SharedMemory.ndefDataFileSize = dataLen;
+            sharedObject.ndefStaticDataFileSize = dataLen;
             c9Off++;
-            Util.arrayCopyNonAtomic(bArray, c9Off, SharedMemory.ndefDataFile, (short) 0, dataLen);
+            Util.arrayCopyNonAtomic(bArray, c9Off, sharedObject.ndefStaticDataFile, (short) 0, dataLen);
         }
-
-        sharedObject = SharedObject.getInstance();
 
         register(bArray, (short) (bOffset + 1), bArray[bOffset]);
     }
@@ -145,29 +145,23 @@ public class NDEFApplet extends Applet {
                 break;
             case FILEID_NDEF_DATA:
 
-                if (SharedMemory.ndef_policy == 0x00){
+                if (sharedObject.ndef_policy == 0x00){
                     ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED); // 0x6985
                     return;
                 }
-                else if (SharedMemory.ndef_policy == 0x02){
-                    dataLen = sharedObject.ndefDataFileSize;
+                else if (sharedObject.ndef_policy == 0x02){
+                    dataLen = sharedObject.ndefDynamicDataFileSize;
                     if (offset== 0) {
-                        // todo: update dynamically...
                         // just generate random nonce and signature
+                        // other dynamic data such as vault info is updated directly on state change
                         sharedObject.populateNdefDataFile();
                     }
-                    data = sharedObject.ndefDataFile;
-
-                    // dynamic data
-//                    dataLen = sharedObject.ndefDataFileSize;
-//                    le = sharedObject.populateNdefDataFile(offset, apduBuffer);
-//                    data = apduBuffer;
-//                    offset = 0;
+                    data = sharedObject.ndefDynamicDataFile;
 
                 } else {
                     // use static url by default
-                    dataLen = SharedMemory.ndefDataFileSize;
-                    data = SharedMemory.ndefDataFile;
+                    dataLen = sharedObject.ndefStaticDataFileSize;
+                    data = sharedObject.ndefStaticDataFile;
                 }
 
                 break;
