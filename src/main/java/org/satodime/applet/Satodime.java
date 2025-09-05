@@ -1017,7 +1017,7 @@ public class Satodime extends javacard.framework.Applet {
                     case 0x01: // static NDEF
                         ndef_size = SharedObject.ndefStaticDataFileSize;
                         Util.setShort(buffer, (short)1, ndef_size);
-                        Util.arrayCopyNonAtomic(SharedObject.ndefStaticDataFile, (short)3, buffer, (short)1, ndef_size);
+                        Util.arrayCopyNonAtomic(SharedObject.ndefStaticDataFile, (short)0, buffer, (short)3, ndef_size);
                         return (short)(3+ndef_size);
                     case 0x02: // dynamic URL with slot info
                         Util.setShort(buffer, (short)1, sharedObject.ndefDynamicDataFileSize);
