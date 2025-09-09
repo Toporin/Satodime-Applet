@@ -52,9 +52,9 @@ For supported hardware, refer to the [Satochip applet repository](https://github
 
 # Buidl & install
 
-## Building using Ant (legacy)
-
 You can build the javacard CAP files or use the last [release](https://github.com/Toporin/SatochipApplet/releases).
+
+## Building using Ant (legacy)
 
 To generate the CAP file from the sources, you can use the [ant-javacard](https://github.com/martinpaljak/ant-javacard) Ant task (see the instructions on the ant-javacard github repository).
 
@@ -65,8 +65,6 @@ For detailed build and installation, refer to the [Satochip applet repository](h
 The project can also be built using Gradle with the [Fidesmo Javacard Gradle plugin](https://github.com/fidesmo/gradle-javacard).
 
 Using this approach allows to load the NDEF applet at the same time (allows to automatically open the right application by simply tapping the card).
-
-Using this approach allows to load the NDEF applet at the same time (allows to automatically open the right application on Android by simply tapping the card).
 
 For compiling the javacard code, you first need to download the javacard SDK into the project in the `sdks` folder:
 ```
