@@ -15,3 +15,6 @@ gp.exe
 /bin
 buildSrc/build
 buildSrc/.gradle
+
+# cap file generated with Ant
+*.cap
