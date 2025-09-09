@@ -38,7 +38,9 @@ repositories {
 dependencies {
 }
 
-task install (type: org.satodime.build.InstallTask)
+task install (type: org.satodime.build.InstallTask){
+  params = project.findProperty('params') ?: ''
+}
 tasks.install.dependsOn(convertJavacard)
 
 compileJava {

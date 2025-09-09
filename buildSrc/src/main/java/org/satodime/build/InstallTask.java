@@ -12,6 +12,8 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.Optional;
 
 import javax.smartcardio.*;
 import java.io.InputStream;
@@ -19,6 +21,20 @@ import java.io.FileInputStream;
 import java.io.IOException;
 
 public class InstallTask extends DefaultTask {
+
+  // command line parameters, to be provided tocard card during installation
+  // Should be a string in Hex format such as 000102AABB
+  private String params = null;
+
+  @Input
+  @Optional
+  public String getParams() {
+    return params;
+  }
+
+  public void setParams(String params) {
+    this.params = params;
+  }
 
   // Satodime constants
   public static final byte[] PACKAGE_AID = Hex.decode("5361746f44696d65");
@@ -88,7 +104,13 @@ public class InstallTask extends DefaultTask {
       logger.info("Finished loading the new package!");
       
       logger.info("Installing the satodime Applet");
-      cmdSet.installForInstall(PACKAGE_AID, SATODIME_AID, SATODIME_INSTANCE_AID, new byte[0]).checkOK();
+      if (params != null) {
+        logger.info("Received params: " + params);
+        byte[] paramsBytes = hexToBytes(params);
+        cmdSet.installForInstall(PACKAGE_AID, SATODIME_AID, SATODIME_INSTANCE_AID, paramsBytes).checkOK();
+      } else {
+        cmdSet.installForInstall(PACKAGE_AID, SATODIME_AID, SATODIME_INSTANCE_AID, new byte[0]).checkOK();
+      }
 
       logger.info("Installing the NDEF Applet");
       cmdSet.installForInstall(PACKAGE_AID, NDEF_AID, NDEF_INSTANCE_AID, NDEF_TAG).checkOK();
@@ -99,4 +121,22 @@ public class InstallTask extends DefaultTask {
       throw new GradleException(e.getMessage(), e);
     }
   }
+
+  /* Convert a hex string to a byte array */
+  public static byte[] hexToBytes(String hexString) {
+    // Remove any whitespace and ensure even length
+    hexString = hexString.replaceAll("\\s", "");
+    if (hexString.length() % 2 != 0) {
+      throw new IllegalArgumentException("Hex string must have even length");
+    }
+
+    byte[] byteArray = new byte[hexString.length() / 2];
+    for (int i = 0; i < byteArray.length; i++) {
+      int index = i * 2;
+      String hexPair = hexString.substring(index, index + 2);
+      byteArray[i] = (byte) Integer.parseInt(hexPair, 16);
+    }
+    return byteArray;
+  }
+
 }

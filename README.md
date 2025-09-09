@@ -75,7 +75,9 @@ Then you must set the JavaCard HOME. The gradle.properties file has a setting wi
 
 To compile the javacard code and generate a cap file, simply run `./gradlew convertJavacard`. The cap file will be compiled in the `build/javacard/org/satodime/applet` folder.
 
-To load the cap file into a blank smart card, connect a card reader with the card inserted and run `./gradlew install`
+To load the cap file into a blank smart card, connect a card reader with the card inserted and run `./gradlew install`.
+
+To provide installation parameters during loading, run`./gradlew install -Pparams=010104AABBCCDD`. Parameters should be provided as a string in hex format.
 
 # License
 
