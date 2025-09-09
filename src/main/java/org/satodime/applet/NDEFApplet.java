@@ -18,12 +18,6 @@ public class NDEFApplet extends Applet {
 
     //private static final short NDEF_READ_SIZE = (short) 0xff;
     private static final short NDEF_READ_SIZE = (short) 0xf0;
-
-//    private static final byte[] NDEF_CAPS_FILE = {
-//        (byte) 0x0f, (byte) 0x00, (byte) 0x0f, (byte) 0x20, (byte) 0x00, (byte) 0xff, (byte) 0x00, (byte) 0x01,
-//        (byte) 0x04, (byte) 0x06, (byte) 0xe1, (byte) 0x04, (byte) 0x04, (byte) 0x00, (byte) 0x00, (byte) 0xff
-//    };
-
     private static final short NDEF_CAPS_FILE_SIZE = (short)0x0F;
     private static final byte[] NDEF_CAPS_FILE = {
             (byte) 0x00, (byte) 0x0f, (byte) 0x20, (byte) 0x00, (byte) 0xff, (byte) 0x00, (byte) 0x01, (byte) 0x04,
@@ -171,29 +165,13 @@ public class NDEFApplet extends Applet {
                 return;
         }
 
-        //short dataLen = Util.makeShort((byte) 0x00, data[0]);
-        //short offset = Util.getShort(apduBuffer, ISO7816.OFFSET_P1);
-
         if (offset < 0 || offset >= dataLen) {
             ISOException.throwIt(ISO7816.SW_INCORRECT_P1P2); // 0x6A86
-            //ISOException.throwIt(offset); // debug
         }
-
-//        short le = apdu.setOutgoingNoChaining();
-//        if (le > NDEF_READ_SIZE) {
-//            le = NDEF_READ_SIZE;
-//        }
 
         if((short)(offset + le) >= dataLen) {
             le = (short)(dataLen - offset);
         }
-
-//        if (le > NDEF_READ_SIZE) {
-//            le = NDEF_READ_SIZE;
-//        }
-
-        // skip the len byte in data
-        //offset++;
 
         apdu.setOutgoingLength(le);
         apdu.sendBytesLong(data, offset, le);
