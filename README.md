@@ -78,6 +78,7 @@ To compile the javacard code and generate a cap file, simply run `./gradlew conv
 To load the cap file into a blank smart card, connect a card reader with the card inserted and run `./gradlew install`.
 
 To provide installation parameters during loading, run`./gradlew install -Pparams=010104AABBCCDD`. Parameters should be provided as a string in hex format.
+For Satodime, install parameters have the following format: `[ nb_slots(1b, optional) | is_coa(1b, optional) | cvc_size(1b, optional) | cvc ]`.
 
 # License
 

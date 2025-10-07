@@ -1097,7 +1097,7 @@ public class Satodime extends javacard.framework.Applet {
         } else {
             buffer[buffer_offset++] = 0x00;
         }
-        // fixed_unlock_secret
+        // is used as Certificate of Authenticity
         if (is_coa){
             buffer[buffer_offset++] = 0x01;
         } else {

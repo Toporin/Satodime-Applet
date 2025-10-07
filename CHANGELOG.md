@@ -14,7 +14,7 @@ Satochip applet full versions follows this format: vX.Y-Z.W where:
 Refactoring, CVC & NDEF support (WIP)
 
 * Add card config through parameters during applet installation:
-  * install parameters: [ nb_slots(1b, optional) | is_coa(1b, optional) | cvc_size(1b, optional) | cvc ]
+  * install parameters: `[ nb_slots(1b, optional) | is_coa(1b, optional) | cvc_size(1b, optional) | cvc ]`
 
 * Minor optimisation: return card status on card select
 
