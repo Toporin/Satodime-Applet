@@ -172,13 +172,13 @@ public class SharedObject {
 
         // offsets
         // [header(10b) | base_url() ] +
-        // [nonce(8b) |  cardtype(1b) | version(4b) | authentikey(33b) | nb_slot(1b) ] +
+        // [nonce(8b) |  cardtype(1b) | rfu12 (2b) | version(4b) | authentikey(33b) | nb_slot(1b) ] +
         // [status(1b) | slip44(4b) | pubkey(33b) ] * nb_slot +
         // [authentikey_sig_size(1b) | authentikey_sig(70-72b) | padding(0-2b)]
-        // total size: (10 + 12) + (16 + 1 + 8 + 66 + 1) + (75)*nb_slot + 145
-        // for 1 slot: 22 + 92 + 75 + 145 = 334 (312 without the url & header)
+        // total size: (10 + 12) + (16 + 1 + 2 + 8 + 66 + 1) + (75)*nb_slot + 145
+        // for 1 slot: 22 + 94 + 75 + 145 = 336 (314 without the url & header)
         this.offset_nonce = (short)(SIZE_HEADER + BASE_URL.length);
-        this.offset_authentikey = (short)(this.offset_nonce + SIZE_NONCE + SIZE_CARD_TYPE + SIZE_VERSION);
+        this.offset_authentikey = (short)(this.offset_nonce + SIZE_NONCE + SIZE_CARD_TYPE + 2 + SIZE_VERSION);
         this.offset_first_slot = (short)(offset_authentikey + SIZE_PUBKEY + SIZE_NBSLOT);
         this.offset_authentikey_sig_size = (short)(offset_first_slot + this.nb_slots * SIZE_SLOT);
         this.offset_authentikey_sig = (short)(offset_authentikey_sig_size+1);
@@ -214,6 +214,9 @@ public class SharedObject {
         } else {
             ndefDynamicDataFile[offset++] = (byte) 'D';
         }
+        // RFU12 (currently 0x0000)
+        ndefDynamicDataFile[offset++] = (byte) '0';
+        ndefDynamicDataFile[offset++] = (byte) '0';
 
         // version
         ndefDynamicDataFile[offset++] = HEX[(short)((Satodime.PROTOCOL_MAJOR_VERSION>>4) & 0x0F)];

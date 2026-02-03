@@ -340,6 +340,8 @@ public class Satodime extends javacard.framework.Applet {
 
     // Card used as Certificate of Authenticity (CoA)?
     private boolean is_coa = false;
+    private byte rfu1 = (byte)0x00; // applet parameter RFU1
+    private byte rfu2 = (byte)0x00; // applet parameter RFU2
 
     // METADATA for each keypair
     private byte[] state_array;
@@ -410,7 +412,7 @@ public class Satodime extends javacard.framework.Applet {
     
     public static void install(byte[] bArray, short bOffset, byte bLength) {
         // extract install parameters if any
-        // install parameters: [ nb_slots(1b, optional) | is_coa(1b, optional) | cvc_size(1b, optional) | cvc ]
+        // install parameters: [ nb_slots(1b, optional) | is_coa(1b, optional) | rfu(2b) | cvc_size(1b, optional) | cvc ]
         byte aidLength = bArray[bOffset];
         short controlLength = (short)(bArray[(short)(bOffset+1+aidLength)]&(short)0x00FF);
         short dataLength = (short)(bArray[(short)(bOffset+1+aidLength+1+controlLength)]&(short)0x00FF);
@@ -527,12 +529,12 @@ public class Satodime extends javacard.framework.Applet {
         randomData.generateData(unlock_secret, (short)0, SIZE_UNLOCK_SECRET);
 
         // recover CVC from install params?
-        if (bLength>=3){
+        if (bLength>=5){
             // CVC = [cvc_size(1b) | cvc ]
-            byte cvc_size = bArray[(short)(bOffset+2)];
-            if ((cvc_size>0) && (cvc_size<=SIZE_UNLOCK_SECRET) && (bLength >= (3+cvc_size))){
+            byte cvc_size = bArray[(short)(bOffset+4)];
+            if ((cvc_size>0) && (cvc_size<=SIZE_UNLOCK_SECRET) && (bLength >= (5+cvc_size))){
                 Util.arrayFillNonAtomic(unlock_secret, (short)0, SIZE_UNLOCK_SECRET, (byte)0x00);
-                Util.arrayCopy(bArray, (short)(bOffset+3), unlock_secret, (short)0, cvc_size);
+                Util.arrayCopy(bArray, (short)(bOffset+5), unlock_secret, (short)0, cvc_size);
                 fixed_unlock_secret = true;
             }
         }
@@ -1077,7 +1079,7 @@ public class Satodime extends javacard.framework.Applet {
      *  p1: 0x00
      *  p2: 0x00
      *  data: (none)
-     *  return: [unlock_counter | nb_keys_slots(1b) | key_status(nb_key_slots bytes) |  fixed_unlock_secret(1b) | is_coa(1b)]
+     *  return: [unlock_counter | nb_keys_slots(1b) | key_status(nb_key_slots bytes) |  fixed_unlock_secret(1b) | is_coa(1b) | rfu1(1b) | rfu2(1b) ]
      */
     private short getSatodimeStatus(APDU apdu, byte[] buffer){
        
@@ -1103,6 +1105,9 @@ public class Satodime extends javacard.framework.Applet {
         } else {
             buffer[buffer_offset++] = 0x00;
         }
+        // applet parameters rfu1 & rfu2 (currently 0x00)
+        buffer[buffer_offset++] = rfu1;
+        buffer[buffer_offset++] = rfu2;
 
         return buffer_offset;
     }
@@ -1278,6 +1283,7 @@ public class Satodime extends javacard.framework.Applet {
     /**
      * This function check a given unlock counter and unlock_code and check validity.
      * This is useful for a client application to confirm their ownership.
+     * Added in Satodime-Applet v0.2-0.1
      *
      *  ins: 0x54
      *  p1: RFU
@@ -1394,6 +1400,7 @@ public class Satodime extends javacard.framework.Applet {
      * This function signs a given hash with the private key for a given key slot.
      * This function is only available when slot status is 'unsealed'.
      * This function does NOT change the status of the corresponding key slot.
+     * Added in Satodime-Applet v0.2-0.1
      *
      * ins: 0x5B
      * p1: key slot (0x00-0x0F)

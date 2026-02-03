@@ -62,6 +62,8 @@ For detailed build and installation, refer to the [Satochip applet repository](h
 
 ## Building using Gradle (new)
 
+To build the project, you need java v1.8.
+
 The project can also be built using Gradle with the [Fidesmo Javacard Gradle plugin](https://github.com/fidesmo/gradle-javacard).
 
 Using this approach allows to load the NDEF applet at the same time (allows to automatically open the right application by simply tapping the card).
@@ -77,8 +79,8 @@ To compile the javacard code and generate a cap file, simply run `./gradlew conv
 
 To load the cap file into a blank smart card, connect a card reader with the card inserted and run `./gradlew install`.
 
-To provide installation parameters during loading, run`./gradlew install -Pparams=010104AABBCCDD`. Parameters should be provided as a string in hex format.
-For Satodime, install parameters have the following format: `[ nb_slots(1b, optional) | is_coa(1b, optional) | cvc_size(1b, optional) | cvc ]`.
+To provide installation parameters during loading, run`./gradlew install -Pparams=0101000004AABBCCDD`. Parameters should be provided as a string in hex format.
+For Satodime, install parameters have the following format: `[ nb_slots(1b, optional) | is_coa(1b, optional) | rfu(2b, optional) | cvc_size(1b, optional) | cvc ]`.
 
 # License
 
