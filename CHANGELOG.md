@@ -9,7 +9,7 @@ Satochip applet full versions follows this format: vX.Y-Z.W where:
 * Z.W refers to changes with no impact on compatibility of the client (e.g minor patches, optimizations...)
 
 
-## [FF.FF-FF-FF]  (WIP)
+## [00.02-00.01]  (WIP)
 
 Refactoring, CVC & NDEF support (WIP)
 

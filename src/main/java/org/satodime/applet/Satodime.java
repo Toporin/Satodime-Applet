@@ -77,12 +77,12 @@ public class Satodime extends javacard.framework.Applet {
      * 
      *   0.1-0.1: initial version
      *   0.1-0.2: refactor card-setup: allows to read info when setup is not done (changes are not allowed)
-     *   WIP 0.2-0.1: Refactoring, CVC & NDEF support
+     *   0.2-0.1: Refactoring, CVC & NDEF support
      */ 
-    final static byte PROTOCOL_MAJOR_VERSION = (byte) 0xff;
-    final static byte PROTOCOL_MINOR_VERSION = (byte) 0xff;
-    final static byte APPLET_MAJOR_VERSION = (byte) 0xff;
-    final static byte APPLET_MINOR_VERSION = (byte) 0xff;
+    final static byte PROTOCOL_MAJOR_VERSION = (byte) 0x00;
+    final static byte PROTOCOL_MINOR_VERSION = (byte) 0x02;
+    final static byte APPLET_MAJOR_VERSION = (byte) 0x00;
+    final static byte APPLET_MINOR_VERSION = (byte) 0x01;
 
     // Maximum number of keys handled by the Cardlet
     //private final static byte MAX_NUM_KEYS = (byte) 3;
