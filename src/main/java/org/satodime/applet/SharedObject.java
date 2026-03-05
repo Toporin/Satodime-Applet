@@ -306,7 +306,7 @@ public class SharedObject {
         byte tmpByte;
         // note: the pubkey is provided in uncompressed format, so we must compress it
         // compute compression byte
-        if (pubkey_buffer[pubkey_offset]%2 == 0){
+        if (pubkey_buffer[(short)(pubkey_offset+pubkey_size-1)]%2 == 0){
             tmpByte = (byte)0x02;
         } else {
             tmpByte = (byte)0x03;
